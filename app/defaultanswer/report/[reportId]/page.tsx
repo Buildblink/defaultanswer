@@ -124,8 +124,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
   const readinessExplanation = readiness.explanation;
   const fetchStatus = analysis.fetchDiagnostics?.status;
   const isAccessRestricted =
-    analysisStatus === "access_restricted" ||
-    analysis.snapshotQuality === ("access_restricted" as SnapshotQuality) ||
+    analysis.snapshotQuality === "access_restricted" ||
     fetchStatus === 401 ||
     fetchStatus === 403 ||
     fetchStatus === 429;

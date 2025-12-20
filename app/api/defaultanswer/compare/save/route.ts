@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/supabase/client";
+import { supabaseAdmin } from "@/lib/supabase/client";
 import type { CompareResponse } from "@/lib/defaultanswer/compare";
 
 type RequestBody = {
@@ -48,3 +48,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+

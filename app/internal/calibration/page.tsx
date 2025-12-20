@@ -220,3 +220,4 @@ function deriveCalibrationStatus(analysis: {
   if (analysis.score < 0) return "error";
   return "ok";
 }
+

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/client'
 import { isValidUrl, normalizeUrl } from '@/lib/defaultanswer/url-utils'
 
 type LeadPayload = {
@@ -64,4 +64,5 @@ export async function POST(req: Request) {
   // Always return success per DEFAULTANSWER_RULES.md (graceful degradation)
   return NextResponse.json({ ok: true, id: insertedId })
 }
+
 

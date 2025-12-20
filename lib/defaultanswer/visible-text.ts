@@ -7,8 +7,8 @@ export function extractVisibleTextFromHtml(html: string): string {
 
   $("script, style, noscript, svg, canvas, iframe, template, head").remove();
 
-  const root = $("body").length ? $("body") : $.root();
-  let text = root.text();
+  const textSource = $("body").length ? $("body *") : $.root().find("*");
+  let text = textSource.text();
 
   text = text
     .replace(/\u00A0/g, " ")
@@ -28,3 +28,4 @@ export function extractVisibleTextFromHtml(html: string): string {
 
   return lines.join("\n");
 }
+

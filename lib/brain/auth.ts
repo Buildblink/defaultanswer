@@ -38,3 +38,4 @@ export async function getUserIdFromRequest(req: Request): Promise<AuthResult> {
     return { userId: null, error: 'Unable to verify user' }
   }
 }
+

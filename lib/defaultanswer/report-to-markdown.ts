@@ -153,25 +153,28 @@ export function reportToMarkdown(report: ReportData): string {
     lines.push("- **Evidence:** Evidence limited — HTML snapshot incomplete.");
     lines.push("");
   } else {
-    if (report.evidence.titleText) lines.push(`- **Title:** ${report.evidence.titleText}`);
-    if (report.evidence.h1Text) lines.push(`- **H1:** ${report.evidence.h1Text}`);
-    if (report.evidence.h2Texts?.length) {
-      lines.push(`- **H2s (first 5):**`);
-      report.evidence.h2Texts.slice(0, 5).forEach((h) => lines.push(`  - ${h}`));
-    }
-    if (report.evidence.schemaTypes) {
-      lines.push(
-        `- **Schema types:** ${report.evidence.schemaTypes.length ? `[${report.evidence.schemaTypes.join(", ")}]` : "[]"}`
-      );
-    }
-    if (report.evidence.contactEvidence?.length) {
-      lines.push(`- **Contact evidence:** ${report.evidence.contactEvidence.slice(0, 2).join(", ")}`);
-    }
-    if (report.evidence.faqEvidence) {
-      const f = report.evidence.faqEvidence;
-      lines.push(
-        `- **FAQ signals:** explicit=${f.explicitFaqDetected ? "yes" : "no"}, indirect_links=${f.indirectFaqLinks.length}, direct_answer_snippets=${f.directAnswerSnippets.length}`
-      );
+    const ev = report.evidence;
+    if (ev) {
+      if (ev.titleText) lines.push(`- **Title:** ${ev.titleText}`);
+      if (ev.h1Text) lines.push(`- **H1:** ${ev.h1Text}`);
+      if (ev.h2Texts?.length) {
+        lines.push(`- **H2s (first 5):**`);
+        ev.h2Texts.slice(0, 5).forEach((h) => lines.push(`  - ${h}`));
+      }
+      if (ev.schemaTypes) {
+        lines.push(
+          `- **Schema types:** ${ev.schemaTypes.length ? `[${ev.schemaTypes.join(", ")}]` : "[]"}`
+        );
+      }
+      if (ev.contactEvidence?.length) {
+        lines.push(`- **Contact evidence:** ${ev.contactEvidence.slice(0, 2).join(", ")}`);
+      }
+      if (ev.faqEvidence) {
+        const f = ev.faqEvidence;
+        lines.push(
+          `- **FAQ signals:** explicit=${f.explicitFaqDetected ? "yes" : "no"}, indirect_links=${f.indirectFaqLinks.length}, direct_answer_snippets=${f.directAnswerSnippets.length}`
+        );
+      }
     }
     lines.push("");
   }
@@ -391,3 +394,4 @@ function formatOutcome(outcome: LiveRecommendationCheck["outcome"]): string {
       return "Not Mentioned";
   }
 }
+

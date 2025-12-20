@@ -14,7 +14,7 @@
 
 import { extractVisibleTextFromHtml } from "./visible-text";
 import { cleanEvidenceText } from "./evidence-text";
-export type SnapshotQuality = "ok" | "thin" | "likely_js";
+export type SnapshotQuality = "ok" | "thin" | "likely_js" | "access_restricted";
 
 export type FetchDiagnostics = {
   requestedUrl: string;
@@ -178,7 +178,7 @@ export function extractPageData(html: string, url: string): ExtractedData {
   const hasHowItWorksHeading =
     [...h2s, ...h3s].some((h) => /how\s+it\s+works?|process/i.test(h));
   const listItemCount = (html.match(/<li\b/gi) || []).length;
-  const hasNumberedSteps = /\b1\.\s+.{0,200}\b2\.\s+/s.test(topTextWindow);
+  const hasNumberedSteps = /\b1\.\s+[\s\S]{0,200}\b2\.\s+/.test(topTextWindow);
   const hasDirectAnswerBlock =
     hasDefinitionBlock || (hasHowItWorksHeading && (listItemCount >= 2 || hasNumberedSteps));
   const directAnswerSnippets = [
@@ -989,3 +989,4 @@ export function analyzeHtml(html: string, url: string): AnalysisResult {
     reasoning,
   };
 }
+

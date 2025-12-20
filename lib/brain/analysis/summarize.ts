@@ -8,11 +8,19 @@ export type BrainSourceSummary = {
   main_entities: string[]
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+let openaiClient: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is required for source summarization')
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey })
+  }
+  return openaiClient
+}
 
 function buildSourceContext(chunks: BrainChunk[]): string {
   if (!chunks.length) return ''
@@ -44,6 +52,7 @@ export async function summarizeSourceFromChunks(opts: {
   const context = buildSourceContext(chunks)
 
   try {
+    const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: MODEL,
       temperature: 0.3,
@@ -85,3 +94,4 @@ export async function summarizeSourceFromChunks(opts: {
     }
   }
 }
+

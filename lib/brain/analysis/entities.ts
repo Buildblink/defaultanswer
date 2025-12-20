@@ -25,11 +25,19 @@ export type BrainChunkEntities = {
 
 type ChunkForExtraction = { id: string; chunk_text: string }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+let openaiClient: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is required for entity extraction')
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey })
+  }
+  return openaiClient
+}
 
 export async function extractEntitiesForChunks(
   chunks: ChunkForExtraction[]
@@ -58,6 +66,7 @@ export async function extractEntitiesForChunks(
 
   for (const batch of batches) {
     try {
+      const openai = getOpenAI()
       const response = await openai.chat.completions.create({
         model: MODEL,
         temperature: 0.1,
@@ -101,3 +110,4 @@ export async function extractEntitiesForChunks(
 
   return results
 }
+

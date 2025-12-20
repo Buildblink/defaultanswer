@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/supabase/client";
+import { supabaseAdmin } from "@/lib/supabase/client";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,3 +30,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+

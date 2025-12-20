@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { useAuth } from '@/lib/auth/auth-context'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 
 type BrainProject = {
@@ -19,7 +18,7 @@ type BrainProject = {
 
 export default function BrainHome() {
   return (
-    <ProtectedRoute requiredRole="viewer">
+    <ProtectedRoute>
       <BrainHomeClient />
     </ProtectedRoute>
   )
@@ -27,7 +26,6 @@ export default function BrainHome() {
 
 function BrainHomeClient() {
   const router = useRouter()
-  const { session } = useAuth()
   const [projects, setProjects] = useState<BrainProject[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -35,22 +33,14 @@ function BrainHomeClient() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session) return
     loadProjects()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.access_token])
-
-  const authHeader = session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {}
+  }, [])
 
   const loadProjects = async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/brain/projects/list', {
-        headers: authHeader,
-      })
+      const res = await fetch('/api/brain/projects/list')
       const data = await res.json()
       if (!res.ok) {
         throw new Error(data.error || 'Failed to load projects')
@@ -74,7 +64,6 @@ function BrainHomeClient() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeader,
         },
         body: JSON.stringify({
           name: form.name.trim(),
@@ -189,3 +178,4 @@ function BrainHomeClient() {
     </div>
   )
 }
+

@@ -115,3 +115,4 @@ function formatEvidenceLines(side: CompareResponseSuccess["a"]): string[] {
   }
   return lines.length ? lines : ["- No evidence captured."];
 }
+

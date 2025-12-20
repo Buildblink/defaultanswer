@@ -11,6 +11,7 @@ export type CompareSide = {
   extracted: AnalysisResult["extracted"];
   snapshotQuality?: AnalysisResult["snapshotQuality"];
   analysisStatus?: AnalysisStatus;
+  analysis?: AnalysisResult;
   error?: string;
 };
 
@@ -246,3 +247,4 @@ function getReadinessClassification(
     explanation: "AI can understand your brand, but confidence gaps prevent it from consistently recommending you as the default.",
   };
 }
+

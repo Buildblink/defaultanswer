@@ -474,3 +474,4 @@ export async function searchChunksByEmbedding(
     score: 0,
   }))
 }
+

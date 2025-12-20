@@ -68,10 +68,12 @@ export async function POST(req: Request) {
     }
 
     const file = await downloadBrainFile(metadata.storagePath)
-    const { text } = await extractTextFromBuffer(
-      file.buffer,
-      source.title || 'file'
-    )
+    const { text } = await extractTextFromBuffer(file.buffer, {
+  filename: source.title || "file",
+})
+
+
+
 
     const chunks = chunkText(text)
     const embeddedChunks = []
@@ -143,3 +145,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

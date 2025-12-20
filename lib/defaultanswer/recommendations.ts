@@ -237,7 +237,7 @@ function shouldDowngradeFaqForStrongCandidate(params: {
 
 function downgradeFaqForRetrievalOptimization(fixPlan: FixPlanItem[]): { fixes: FixPlanItem[]; downgradedFaq: boolean } {
   let downgraded = false;
-  const fixes = fixPlan.map((f) => {
+  const fixes: FixPlanItem[] = fixPlan.map((f): FixPlanItem => {
     if (!isFaqFix(f.action)) return f;
     downgraded = downgraded || f.priority === "high";
     return {
@@ -248,4 +248,5 @@ function downgradeFaqForRetrievalOptimization(fixPlan: FixPlanItem[]): { fixes: 
   });
   return { fixes, downgradedFaq: downgraded };
 }
+
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,14 +51,14 @@ type Props = {
 
 export default function ProjectWorkspace({ projectId }: Props) {
   return (
-    <ProtectedRoute requiredRole="viewer">
+    <ProtectedRoute>
       <ProjectWorkspaceClient projectId={projectId} />
     </ProtectedRoute>
   )
 }
 
 function ProjectWorkspaceClient({ projectId }: Props) {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
 
   const [project, setProject] = useState<BrainProject | null>(null)
@@ -76,21 +76,9 @@ function ProjectWorkspaceClient({ projectId }: Props) {
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const authHeader = useMemo(
-    () =>
-      session?.access_token
-        ? { Authorization: `Bearer ${session.access_token}` }
-        : {},
-    [session?.access_token]
-  )
+  const authHeader = useMemo(() => ({}), [])
 
-  useEffect(() => {
-    if (!session) return
-    loadProjectAndSources()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.access_token])
-
-  const loadProjectAndSources = async () => {
+  const loadProjectAndSources = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -128,7 +116,12 @@ function ProjectWorkspaceClient({ projectId }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [authHeader, projectId])
+
+  useEffect(() => {
+    if (!user) return
+    loadProjectAndSources()
+  }, [user, loadProjectAndSources])
 
   const refreshSources = async () => {
     try {

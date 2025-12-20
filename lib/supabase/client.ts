@@ -6,11 +6,19 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const fallbackUrl = 'http://localhost:54321'
 const fallbackAnonKey = 'dev-anon-key'
+const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+const isServer = typeof window === 'undefined'
 
-const resolvedSupabaseUrl = supabaseUrl || fallbackUrl
-const resolvedAnonKey = supabaseAnonKey || fallbackAnonKey
+if (isProd && isServer && (!supabaseUrl || !supabaseAnonKey)) {
+  throw new Error(
+    'Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required in production.'
+  )
+}
 
-if (!supabaseUrl || !supabaseAnonKey) {
+const resolvedSupabaseUrl = isProd ? (supabaseUrl || '') : supabaseUrl || fallbackUrl
+const resolvedAnonKey = isProd ? (supabaseAnonKey || '') : supabaseAnonKey || fallbackAnonKey
+
+if (!isProd && (!supabaseUrl || !supabaseAnonKey)) {
   console.warn(
     'Supabase environment variables missing; using local fallbacks to keep static pages rendering.'
   )
@@ -22,7 +30,7 @@ export const supabase = createClient(resolvedSupabaseUrl, resolvedAnonKey)
 // Server-side Supabase client (uses service role key, bypasses RLS)
 // Use this for backend operations like agent workflows, cron jobs, etc.
 export const supabaseAdmin = supabaseServiceRoleKey
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+  ? createClient(resolvedSupabaseUrl, supabaseServiceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -48,7 +56,7 @@ export function getBrainServerClient(): SupabaseClient {
     return brainServerClient
   }
 
-  brainServerClient = createClient(supabaseUrl, requireServiceRoleKey(), {
+  brainServerClient = createClient(resolvedSupabaseUrl, requireServiceRoleKey(), {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -119,3 +127,4 @@ export type ChatMessage = {
   metadata?: Record<string, any>
   created_at: string
 }
+

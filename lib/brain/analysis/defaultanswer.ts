@@ -47,11 +47,19 @@ type EntityAggregate = {
   isCompetitor?: boolean
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+let openaiClient: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is required for default answer analysis')
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey })
+  }
+  return openaiClient
+}
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase()
@@ -174,6 +182,7 @@ async function generateScoreNotes(
   analysis: DefaultAnswerProjectAnalysis
 ): Promise<string[]> {
   try {
+    const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: MODEL,
       temperature: 0.4,
@@ -298,3 +307,4 @@ export async function analyzeProjectForDefaultAnswer(opts: {
 
   return analysis
 }
+

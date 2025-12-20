@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { supabaseAdmin } from "@/lib/supabase/supabase/client";
+import { supabaseAdmin } from "@/lib/supabase/client";
 import type { AnalysisResult } from "./scoring";
 
 export type ScanRecord = {
@@ -212,3 +212,4 @@ export async function fetchLatestScans(url: string) {
     return { ok: false as const, error: err instanceof Error ? err.message : "unknown error" };
   }
 }
+

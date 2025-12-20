@@ -5,6 +5,27 @@ import { normalizeUrl, isValidUrl } from "@/lib/defaultanswer/url-utils";
 import type { BreakdownItem, ExtractedData } from "@/lib/defaultanswer/scoring";
 import type { CompareSide, GapItem, CompareResponseSuccess, CompareResponse } from "@/lib/defaultanswer/compare";
 
+type BiggestGap = {
+  label: string;
+  delta: number;
+  aPoints: number;
+  bPoints: number;
+  max: number;
+  suggestedAction: string;
+};
+
+type BreakdownEntry = {
+  label: string;
+  max: number;
+  aPoints: number;
+  bPoints: number;
+};
+
+type BreakdownRow = BreakdownEntry & {
+  key: string;
+  delta: number;
+};
+
 export default function CompareClient() {
   const [urlA, setUrlA] = useState("");
   const [urlB, setUrlB] = useState("");
@@ -236,7 +257,7 @@ export default function CompareClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-                  {breakdownRows.map((row) => (
+                  {breakdownRows.map((row: BreakdownRow, _idx: number) => (
                     <tr key={row.key}>
                       <td className="py-2 pr-4">{row.label}</td>
                       <td className="py-2 pr-4">{row.aPoints}/{row.max}</td>
@@ -255,7 +276,7 @@ export default function CompareClient() {
               <Card title="Biggest gaps (competitor advantage)">
                 <ul className="list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
                   {diff.biggestGaps.length === 0 && <li>No significant gaps detected.</li>}
-                  {diff.biggestGaps.map((gap, idx) => (
+                  {diff.biggestGaps.map((gap: BiggestGap, idx: number) => (
                     <li key={idx}>
                       <span className="font-semibold">{gap.label}</span> — competitor +{gap.delta} ({gap.aPoints}/{gap.max} vs {gap.bPoints}/{gap.max})
                       {gap.suggestedAction !== "—" && <div className="text-xs text-stone-500 mt-1">Action: {gap.suggestedAction}</div>}
@@ -267,7 +288,7 @@ export default function CompareClient() {
               <Card title="Quick wins for you">
                 <ul className="list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
                   {diff.quickWins.length === 0 && <li>No quick wins detected.</li>}
-                  {diff.quickWins.map((gap, idx) => (
+                  {diff.quickWins.map((gap: GapItem, idx: number) => (
                     <li key={idx}>
                       <span className="font-semibold">{gap.label}</span> — {gap.suggestedAction}
                     </li>
@@ -307,8 +328,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function buildBreakdownRows(a: BreakdownItem[], b: BreakdownItem[]) {
-  const map = new Map<string, { label: string; max: number; aPoints: number; bPoints: number }>();
+function buildBreakdownRows(a: BreakdownItem[], b: BreakdownItem[]): BreakdownRow[] {
+  const map = new Map<string, BreakdownEntry>();
   const add = (items: BreakdownItem[], keySide: "aPoints" | "bPoints") => {
     for (const item of items) {
       const key = `${item.category}::${item.label}`;
@@ -323,7 +344,7 @@ function buildBreakdownRows(a: BreakdownItem[], b: BreakdownItem[]) {
   };
   add(a, "aPoints");
   add(b, "bPoints");
-  return Array.from(map.entries()).map(([key, value]) => ({
+  return Array.from(map.entries()).map(([key, value]: [string, BreakdownEntry], _idx: number) => ({
     key,
     ...value,
     delta: value.bPoints - value.aPoints,
@@ -442,3 +463,4 @@ async function handleExportPdf(res: CompareResponseSuccess | null) {
     // ignore for now
   }
 }
+

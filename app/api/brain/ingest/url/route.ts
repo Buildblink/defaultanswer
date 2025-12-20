@@ -12,3 +12,4 @@ export async function POST(req: Request) {
     message: 'URL ingestion pipeline is not available yet. Coming soon.',
   })
 }
+

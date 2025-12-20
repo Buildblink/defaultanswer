@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isHistoryConfigured } from "@/lib/defaultanswer/history";
-import { supabaseAdmin } from "@/lib/supabase/supabase/client";
+import { supabaseAdmin } from "@/lib/supabase/client";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -28,3 +28,4 @@ export async function GET(req: Request) {
     );
   }
 }
+
