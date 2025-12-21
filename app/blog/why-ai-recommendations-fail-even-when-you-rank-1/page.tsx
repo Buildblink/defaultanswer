@@ -1,20 +1,68 @@
 import Link from "next/link";
+import Script from "next/script";
+import { blogPosts } from "../posts";
+
+const post = blogPosts.find(
+  (item) => item.slug === "why-ai-recommendations-fail-even-when-you-rank-1"
+);
+const siteUrl = "https://www.defaultanswer.com";
+const canonicalUrl = `${siteUrl}/blog/${post?.slug}`;
 
 export const metadata = {
-  title: "Why AI recommendations fail even when your site ranks #1 | DefaultAnswer",
-  description:
-    "Ranking is not the same as being recommended. A sober, observable explanation of why AI assistants skip high-ranking websites and what to fix first.",
+  title: `${post?.title} | DefaultAnswer`,
+  description: post?.description,
+  alternates: {
+    canonical: canonicalUrl,
+  },
   openGraph: {
-    title: "Why AI recommendations fail even when your site ranks #1 | DefaultAnswer",
-    description:
-      "Ranking is not the same as being recommended. Why AI assistants skip high-ranking websites and what to fix first.",
+    title: `${post?.title} | DefaultAnswer`,
+    description: post?.description,
     type: "article",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
   },
 };
 
 export default function BlogPostPage() {
+  const published = post?.date ?? "";
+  const updated = post?.updatedAt ?? published;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post?.title,
+    description: post?.description,
+    datePublished: published,
+    dateModified: updated,
+    author: {
+      "@type": "Organization",
+      name: "DefaultAnswer",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "DefaultAnswer",
+    },
+    mainEntityOfPage: canonicalUrl,
+    url: canonicalUrl,
+    image: `${siteUrl}/og.png`,
+    inLanguage: "en",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "DefaultAnswer",
+      url: siteUrl,
+    },
+  };
+
   return (
     <main className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
+      <Script
+        id="ld-blogposting-rank-1"
+        type="application/ld+json"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Top */}
       <header className="border-b border-stone-200 bg-stone-50/80 backdrop-blur dark:border-stone-800 dark:bg-stone-950/60">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
@@ -28,6 +76,12 @@ export default function BlogPostPage() {
             </Link>
             <Link href="/blog" className="hover:text-stone-900 dark:hover:text-stone-50">
               Blog
+            </Link>
+            <Link href="/about" className="hover:text-stone-900 dark:hover:text-stone-50">
+              About
+            </Link>
+            <Link href="/contact" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Contact
             </Link>
             <Link
               href="/defaultanswer"
@@ -55,7 +109,14 @@ export default function BlogPostPage() {
         <div className="mx-auto mt-5 max-w-3xl space-y-6">
           <p className="text-base leading-relaxed text-stone-700 dark:text-stone-300">
             This article is intentionally limited to observable behavior and practical consequences. It does not rely on
-            proprietary internals or speculative claims.
+            proprietary internals or speculative claims. For a related framing on description limits, see{" "}
+            <Link
+              href="/blog/why-ai-cannot-recommend-what-it-cannot-describe"
+              className="underline hover:text-stone-900 dark:hover:text-stone-50"
+            >
+              cannot recommend what it cannot describe
+            </Link>
+            .
           </p>
 
           {/* Thesis callout (replaces the “big bold paragraph” feeling) */}

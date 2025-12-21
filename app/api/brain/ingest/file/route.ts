@@ -19,7 +19,7 @@ export const maxDuration = 60
 export async function POST(req: Request) {
   const auth = await getUserIdFromRequest(req)
   if (!auth.userId) {
-    return NextResponse.json({ error: auth.error }, { status: 401 })
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
   }
 
   let body: { sourceId?: string }
@@ -27,14 +27,14 @@ export async function POST(req: Request) {
     body = await req.json()
   } catch {
     return NextResponse.json(
-      { error: 'Invalid JSON body' },
+      { ok: false, error: 'Invalid JSON body' },
       { status: 400 }
     )
   }
 
   if (!body.sourceId) {
     return NextResponse.json(
-      { error: 'sourceId is required' },
+      { ok: false, error: 'sourceId is required' },
       { status: 400 }
     )
   }
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   try {
     const source = await getSourceById(auth.userId, body.sourceId)
     if (!source) {
-      return NextResponse.json({ error: 'Source not found' }, { status: 404 })
+      return NextResponse.json({ ok: false, error: 'Source not found' }, { status: 404 })
     }
 
     const metadata =
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       !metadata.storagePath
     ) {
       return NextResponse.json(
-        { error: 'Source is not a file upload' },
+        { ok: false, error: 'Source is not a file upload' },
         { status: 400 }
       )
     }
@@ -132,6 +132,7 @@ export async function POST(req: Request) {
     await setSourceStatus(source.id, 'ready')
 
     return NextResponse.json({
+      ok: true,
       success: true,
       chunks: savedChunks.length,
       sourceId: source.id,
@@ -140,9 +141,8 @@ export async function POST(req: Request) {
     console.error('[brain/ingest/file] Error', error)
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Ingestion failed' },
+      { ok: false, error: error instanceof Error ? error.message : 'Ingestion failed' },
       { status: 500 }
     )
   }
 }
-

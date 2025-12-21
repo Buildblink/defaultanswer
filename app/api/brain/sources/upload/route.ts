@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { createFileSource } from '@/lib/brain/db'
 import { getUserIdFromRequest } from '@/lib/brain/auth'
 import { uploadBrainFile } from '@/lib/brain/storage'
-import { getBrainServerClient } from '@/lib/supabase/client'
+import { getBrainServerClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
   const auth = await getUserIdFromRequest(req)
   if (!auth.userId) {
-    return NextResponse.json({ error: auth.error }, { status: 401 })
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
   }
 
   const formData = await req.formData()
@@ -18,13 +18,13 @@ export async function POST(req: Request) {
 
   if (!projectId) {
     return NextResponse.json(
-      { error: 'projectId is required' },
+      { ok: false, error: 'projectId is required' },
       { status: 400 }
     )
   }
 
   if (!file) {
-    return NextResponse.json({ error: 'file is required' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'file is required' }, { status: 400 })
   }
 
   try {
@@ -43,13 +43,14 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({
+      ok: true,
       source,
       storage: uploadResult,
     })
   } catch (error) {
     console.error('[brain/sources/upload] Error', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Upload failed' },
+      { ok: false, error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
     )
   }

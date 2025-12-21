@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/client";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { CompareResponse } from "@/lib/defaultanswer/compare";
 
 type RequestBody = {
@@ -25,6 +25,7 @@ export async function POST(req: Request) {
   }
 
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("defaultanswer_compares")
       .insert({

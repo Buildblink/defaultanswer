@@ -1,4 +1,4 @@
-import { getBrainServerClient } from '@/lib/supabase/client'
+import { getBrainServerClient } from '@/lib/supabase/server'
 
 export type BrainProject = {
   id: string

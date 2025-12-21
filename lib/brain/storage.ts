@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getBrainServerClient } from '@/lib/supabase/client'
+import { getBrainServerClient } from '@/lib/supabase/server'
 
 const BRAIN_BUCKET = 'brain'
 

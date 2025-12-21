@@ -73,6 +73,80 @@ function Pill({ children }: { children: ReactNode }) {
 }
 
 export default function HomePage() {
+  const definition =
+    "DefaultAnswer is a diagnostic tool that evaluates whether an AI assistant could confidently recommend a website as the default answer to a user question. It uses observable, retrievable on-page signals to produce a structured assessment."
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: "DefaultAnswer",
+        url: "https://www.defaultanswer.com",
+        description: definition,
+      },
+      {
+        "@type": "Service",
+        name: "DefaultAnswer",
+        url: "https://www.defaultanswer.com",
+        description: definition,
+        provider: {
+          "@type": "Organization",
+          name: "DefaultAnswer",
+          url: "https://www.defaultanswer.com",
+        },
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: "What is DefaultAnswer?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: definition,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Who is DefaultAnswer for?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text:
+                "DefaultAnswer is for SaaS founders, product teams, and agencies who need to understand why AI systems hesitate to cite a site. It is also for sites that rank but are not recommended by AI assistants.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "How does DefaultAnswer work?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text:
+                "DefaultAnswer captures a snapshot of visible on-page content and evaluates it with deterministic checks. It maps findings to specific signals so recommendations are auditable and repeatable.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What does DefaultAnswer measure?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text:
+                "DefaultAnswer measures entity clarity, answerability, commercial clarity, trust and legitimacy, and accessibility and retrievability. These categories reflect whether an AI system can describe, quote, and justify a site as a source.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What does DefaultAnswer not measure?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text:
+                "DefaultAnswer does not measure rankings, traffic, or backlinks. It does not use probabilistic scoring or proprietary model internals, and it does not claim performance outcomes.",
+            },
+          },
+        ],
+      },
+    ],
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
       <header className="sticky top-0 z-10 border-b border-stone-200/80 bg-stone-50/85 backdrop-blur dark:border-stone-800 dark:bg-stone-950/75">
@@ -87,6 +161,12 @@ export default function HomePage() {
             <Link href="/blog" className="hover:text-stone-900 dark:hover:text-stone-50">
               Blog
             </Link>
+            <Link href="/about" className="hover:text-stone-900 dark:hover:text-stone-50">
+              About
+            </Link>
+            <Link href="/contact" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Contact
+            </Link>
             <Link
               href="/defaultanswer"
               className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-400 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
@@ -97,11 +177,31 @@ export default function HomePage() {
         </div>
       </header>
 
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 md:pb-20 md:pt-20">
           <div className="space-y-6">
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                WHAT DEFAULTANSWER IS
+              </div>
+              <p className="text-base leading-relaxed text-stone-700 dark:text-stone-300">
+                DefaultAnswer analyzes whether AI systems can confidently recommend your website as the default answer
+                to user questions.
+              </p>
+              <p className="text-sm text-stone-600 dark:text-stone-300">
+                This is not SEO. It does not measure rankings, traffic, or backlinks.
+              </p>
+            </div>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
               How AI decides which websites to recommend
             </h1>
+            <p className="text-base leading-relaxed text-stone-700 dark:text-stone-300">
+              Run a fast audit to see whether an AI assistant could confidently cite your site — and what to fix first.
+            </p>
             <p className="max-w-3xl text-lg leading-relaxed text-stone-700 dark:text-stone-300">
               DefaultAnswer evaluates whether an AI system can identify, trust, and recommend your website by checking
               that on-page signals are retrievable, unambiguous, and usable inside an answer.
@@ -195,7 +295,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
         <SectionTitle
           eyebrow="Signals"
-          title="What DefaultAnswer measures"
+          title="What determines whether AI will recommend your site"
           subtitle="These categories map to whether an AI system can confidently use your site as a source."
         />
 
@@ -224,7 +324,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
         <SectionTitle
           eyebrow="Output"
-          title="What you get from an analysis"
+          title="What an AI recommendation audit actually shows"
           subtitle="A structured excerpt from the deterministic report."
         />
 
@@ -263,12 +363,10 @@ export default function HomePage() {
 
           <div className="grid gap-4">
             <Card title="Deterministic and repeatable">
-              The same input snapshot produces the same outputs. This keeps reports consistent and easy to compare
-              over time.
+              The same input snapshot produces the same outputs, keeping reports consistent and comparable over time.
             </Card>
             <Card title="Designed to be cite-able">
-              Reports use stable vocabulary and explicit structure. That makes them easier for humans to act on and
-              easier for AI systems to reference.
+              Reports use stable vocabulary and explicit structure so AI systems can reference them directly.
             </Card>
             <Card title="Built for comparison and monitoring">
               Compare two sites side by side. Track what changed across scans. Focus on the signals that limit
@@ -281,7 +379,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
         <SectionTitle
           eyebrow="Cite-able"
-          title="Built to be cite-able"
+          title="Built so AI can safely cite you"
           subtitle="Stable vocabulary, deterministic outputs, and structured evidence keep recommendations auditable."
         />
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -298,6 +396,72 @@ export default function HomePage() {
         <p className="mt-6 text-base font-medium text-stone-900 dark:text-stone-50">
           This consistency allows AI systems to reference DefaultAnswer findings without reinterpretation.
         </p>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
+        <SectionTitle title="Who DefaultAnswer is for" />
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <Card title="For">
+            <ul className="list-disc pl-5">
+              <li>SaaS founders and product teams</li>
+              <li>Agencies advising on AI visibility</li>
+              <li>Sites that rank but are not recommended by AI</li>
+            </ul>
+          </Card>
+          <Card title="Not for">
+            <ul className="list-disc pl-5">
+              <li>Keyword ranking optimization</li>
+              <li>Backlink analysis</li>
+              <li>Traffic growth tactics</li>
+            </ul>
+          </Card>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
+        <SectionTitle title="FAQ" />
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <Card title="What is DefaultAnswer?">
+            <div className="space-y-2">
+              <p>{definition}</p>
+            </div>
+          </Card>
+          <Card title="Who is DefaultAnswer for?">
+            <div className="space-y-2">
+              <p>
+                DefaultAnswer is for SaaS founders, product teams, and agencies who need to understand why AI systems
+                hesitate to cite a site.
+              </p>
+              <p>It is also for sites that rank but are not recommended by AI assistants.</p>
+            </div>
+          </Card>
+          <Card title="How does DefaultAnswer work?">
+            <div className="space-y-2">
+              <p>
+                DefaultAnswer captures a snapshot of visible on-page content and evaluates it with deterministic checks.
+              </p>
+              <p>It maps findings to specific signals so recommendations are auditable and repeatable.</p>
+            </div>
+          </Card>
+          <Card title="What does DefaultAnswer measure?">
+            <div className="space-y-2">
+              <p>
+                DefaultAnswer measures entity clarity, answerability, commercial clarity, trust and legitimacy, and
+                accessibility and retrievability.
+              </p>
+              <p>These categories reflect whether an AI system can describe, quote, and justify a site as a source.</p>
+            </div>
+          </Card>
+          <Card title="What does DefaultAnswer not measure?">
+            <div className="space-y-2">
+              <p>DefaultAnswer does not measure rankings, traffic, or backlinks.</p>
+              <p>
+                It does not use probabilistic scoring or proprietary model internals, and it does not claim performance
+                outcomes.
+              </p>
+            </div>
+          </Card>
+        </div>
       </section>
 
       <footer className="border-t border-stone-200/80 py-10 dark:border-stone-800">

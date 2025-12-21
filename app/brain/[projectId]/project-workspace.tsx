@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useAuth } from '@/lib/auth/auth-context'
 import { ProtectedRoute } from '@/components/auth/protected-route'
+import type { Session } from '@supabase/supabase-js'
+import { supabase, supabaseDebugUrl } from '@/lib/supabase/client'
 
 type BrainProject = {
   id: string
@@ -58,8 +59,8 @@ export default function ProjectWorkspace({ projectId }: Props) {
 }
 
 function ProjectWorkspaceClient({ projectId }: Props) {
-  const { user } = useAuth()
   const router = useRouter()
+  const [session, setSession] = useState<Session | null>(null)
 
   const [project, setProject] = useState<BrainProject | null>(null)
   const [sources, setSources] = useState<BrainSource[]>([])
@@ -75,8 +76,49 @@ function ProjectWorkspaceClient({ projectId }: Props) {
   const [urlInput, setUrlInput] = useState('')
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const supabaseLabel = `Supabase: ${supabaseDebugUrl}`
+  const [signingOut, setSigningOut] = useState(false)
 
-  const authHeader = useMemo(() => ({}), [])
+  useEffect(() => {
+    let isMounted = true
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return
+        setSession(data.session ?? null)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setSession(null)
+      })
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!isMounted) return
+        setSession(nextSession)
+      }
+    )
+
+    return () => {
+      isMounted = false
+      subscription.subscription.unsubscribe()
+    }
+  }, [])
+
+  const authHeader = useMemo<HeadersInit>(
+    () =>
+      session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : ({} as Record<string, string>),
+    [session?.access_token]
+  )
+
+  const handleSignOut = async () => {
+    setSigningOut(true)
+    await supabase.auth.signOut()
+    setSigningOut(false)
+  }
 
   const loadProjectAndSources = useCallback(async () => {
     setLoading(true)
@@ -91,6 +133,11 @@ function ProjectWorkspaceClient({ projectId }: Props) {
 
       const projectsData = await projectsRes.json()
       const sourcesData = await sourcesRes.json()
+
+      if (projectsRes.status === 401 || sourcesRes.status === 401) {
+        setError('Sign in to view projects')
+        return
+      }
 
       if (!projectsRes.ok) {
         throw new Error(projectsData.error || 'Failed to load project')
@@ -119,9 +166,9 @@ function ProjectWorkspaceClient({ projectId }: Props) {
   }, [authHeader, projectId])
 
   useEffect(() => {
-    if (!user) return
+    if (!session) return
     loadProjectAndSources()
-  }, [user, loadProjectAndSources])
+  }, [session?.access_token, loadProjectAndSources])
 
   const refreshSources = async () => {
     try {
@@ -303,10 +350,25 @@ function ProjectWorkspaceClient({ projectId }: Props) {
               <p className="text-xs text-muted-foreground mt-1">
                 Created {project && new Date(project.created_at).toLocaleString()}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {supabaseLabel}
+              </p>
             </div>
-            <Badge variant="secondary">
-              Sources: {sources.length}
-            </Badge>
+            <div className="flex items-center gap-3">
+              {session && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                >
+                  {signingOut ? 'Signing out...' : 'Sign out'}
+                </Button>
+              )}
+              <Badge variant="secondary">
+                Sources: {sources.length}
+              </Badge>
+            </div>
           </div>
 
           <Tabs defaultValue="sources" className="w-full">

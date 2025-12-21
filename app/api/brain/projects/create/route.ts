@@ -5,7 +5,7 @@ import { getUserIdFromRequest } from '@/lib/brain/auth'
 export async function POST(req: Request) {
   const auth = await getUserIdFromRequest(req)
   if (!auth.userId) {
-    return NextResponse.json({ error: auth.error }, { status: 401 })
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
   }
 
   let body: { name?: string; description?: string | null }
@@ -13,14 +13,14 @@ export async function POST(req: Request) {
     body = await req.json()
   } catch {
     return NextResponse.json(
-      { error: 'Invalid JSON body' },
+      { ok: false, error: 'Invalid JSON body' },
       { status: 400 }
     )
   }
 
   if (!body.name || !body.name.trim()) {
     return NextResponse.json(
-      { error: 'Project name is required' },
+      { ok: false, error: 'Project name is required' },
       { status: 400 }
     )
   }
@@ -30,11 +30,12 @@ export async function POST(req: Request) {
       name: body.name.trim(),
       description: body.description ?? null,
     })
-    return NextResponse.json({ project })
+    return NextResponse.json({ ok: true, project })
   } catch (error) {
     console.error('[brain/projects/create] Error', error)
     return NextResponse.json(
       {
+        ok: false,
         error:
           error instanceof Error ? error.message : 'Unable to create project',
       },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isHistoryConfigured } from "@/lib/defaultanswer/history";
-import { supabaseAdmin } from "@/lib/supabase/client";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -11,6 +11,7 @@ export async function GET(req: Request) {
   if (!isHistoryConfigured()) return NextResponse.json({ ok: false, error: "History not configured" }, { status: 200 });
 
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("defaultanswer_scans")
       .select("id, created_at, score, readiness, hash")

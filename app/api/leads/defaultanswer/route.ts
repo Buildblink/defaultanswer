@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/client'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { isValidUrl, normalizeUrl } from '@/lib/defaultanswer/url-utils'
 
 type LeadPayload = {
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   let insertedId: string | undefined
 
   try {
+    const supabaseAdmin = getSupabaseAdmin()
     // Try inserting into 'leads' table (generic)
     const { data, error } = await supabaseAdmin
       .from('leads')

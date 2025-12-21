@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { supabaseAdmin } from "@/lib/supabase/client";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { AnalysisResult } from "./scoring";
 
 export type ScanRecord = {
@@ -183,6 +183,7 @@ function extractDomain(url: string): string {
 
 export async function saveScan(record: ScanRecord) {
   if (!isHistoryConfigured()) return null;
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { data, error } = await supabaseAdmin.from("defaultanswer_scans").insert(record).select("id").single();
     if (error) {
@@ -198,6 +199,7 @@ export async function saveScan(record: ScanRecord) {
 
 export async function fetchLatestScans(url: string) {
   if (!isHistoryConfigured()) return { ok: false as const, error: "History not configured" };
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { data, error } = await supabaseAdmin
       .from("defaultanswer_scans")

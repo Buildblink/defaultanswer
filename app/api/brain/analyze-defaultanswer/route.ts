@@ -6,7 +6,7 @@ import { analyzeProjectForDefaultAnswer } from '@/lib/brain/analysis/defaultansw
 export async function POST(req: Request) {
   const auth = await getUserIdFromRequest(req)
   if (!auth.userId) {
-    return NextResponse.json({ error: auth.error }, { status: 401 })
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
   }
 
   let body: {
@@ -18,19 +18,19 @@ export async function POST(req: Request) {
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
   if (!body.projectId) {
     return NextResponse.json(
-      { error: 'projectId is required' },
+      { ok: false, error: 'projectId is required' },
       { status: 400 }
     )
   }
 
   const project = await getProjectById(auth.userId, body.projectId)
   if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    return NextResponse.json({ ok: false, error: 'Project not found' }, { status: 404 })
   }
 
   try {
@@ -41,11 +41,11 @@ export async function POST(req: Request) {
       competitorNames: body.competitorNames || [],
     })
 
-    return NextResponse.json(analysis)
+    return NextResponse.json({ ok: true, ...analysis })
   } catch (error) {
     console.error('[brain/analyze-defaultanswer] Error', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Analysis failed' },
+      { ok: false, error: error instanceof Error ? error.message : 'Analysis failed' },
       { status: 500 }
     )
   }

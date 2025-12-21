@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseServerClient } from '@/lib/supabase/server'
 
 type AuthResult =
   | { userId: string; error?: undefined }
@@ -27,6 +27,7 @@ export async function getUserIdFromRequest(req: Request): Promise<AuthResult> {
   }
 
   try {
+    const supabase = getSupabaseServerClient()
     const { data, error } = await supabase.auth.getUser(token)
     if (error || !data?.user) {
       return { userId: null, error: 'Invalid or expired token' }

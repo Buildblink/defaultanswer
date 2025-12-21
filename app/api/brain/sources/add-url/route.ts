@@ -5,7 +5,7 @@ import { getUserIdFromRequest } from '@/lib/brain/auth'
 export async function POST(req: Request) {
   const auth = await getUserIdFromRequest(req)
   if (!auth.userId) {
-    return NextResponse.json({ error: auth.error }, { status: 401 })
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 })
   }
 
   let body: { projectId?: string; url?: string; title?: string | null }
@@ -13,14 +13,14 @@ export async function POST(req: Request) {
     body = await req.json()
   } catch {
     return NextResponse.json(
-      { error: 'Invalid JSON body' },
+      { ok: false, error: 'Invalid JSON body' },
       { status: 400 }
     )
   }
 
   if (!body.projectId || !body.url) {
     return NextResponse.json(
-      { error: 'projectId and url are required' },
+      { ok: false, error: 'projectId and url are required' },
       { status: 400 }
     )
   }
@@ -33,11 +33,11 @@ export async function POST(req: Request) {
 
     // Sources are stored as ready immediately
 
-    return NextResponse.json({ source: { ...source, status: 'ready' } })
+    return NextResponse.json({ ok: true, source: { ...source, status: 'ready' } })
   } catch (error) {
     console.error('[brain/sources/add-url] Error', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to add URL' },
+      { ok: false, error: error instanceof Error ? error.message : 'Failed to add URL' },
       { status: 500 }
     )
   }
