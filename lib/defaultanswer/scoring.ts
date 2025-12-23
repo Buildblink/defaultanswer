@@ -61,6 +61,7 @@ export type ExtractedData = {
   h1s: string[];
   h2s: string[];
   h3s: string[];
+  visibleTextExcerpt?: string;
   hasFAQ: boolean;
   hasIndirectFAQ: boolean;
   hasDirectAnswerBlock: boolean;
@@ -200,6 +201,7 @@ export function extractPageData(html: string, url: string): ExtractedData {
 
   // Detect pricing mentions using visible text for detection and cleaned text for evidence
   const pricingVisibleText = extractVisibleTextFromHtml(html);
+  const visibleTextExcerpt = pricingVisibleText.replace(/\s+/g, " ").trim().slice(0, 1200);
   const cleanedPricingText = cleanEvidenceText(pricingVisibleText);
   const pricingPatterns = /pricing|plans|price|\$\d|\u20ac\d|\u0141\d|\/month|\/year|per month|per year|free tier|free plan/i;
   const hasPricing = pricingPatterns.test(pricingVisibleText.toLowerCase());
@@ -258,6 +260,7 @@ export function extractPageData(html: string, url: string): ExtractedData {
     h1s,
     h2s,
     h3s,
+    visibleTextExcerpt,
     hasFAQ,
     hasIndirectFAQ,
     hasDirectAnswerBlock,
