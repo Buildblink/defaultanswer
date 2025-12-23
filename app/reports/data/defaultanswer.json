@@ -1,0 +1,169 @@
+{
+  "summary": {
+    "url": "https://defaultanswer.com",
+    "score": 85,
+    "scoreLabel": "Default Answer Score™",
+    "readiness": "Strong Default Candidate",
+    "verdict": "Your site provides clear signals that allow AI to confidently identify, trust, and recommend your brand.",
+    "note": "No critical fixes detected — remaining improvements are marginal."
+  },
+  "scoreBreakdown": {
+    "entityClarity": {
+      "score": 25,
+      "max": 25,
+      "checks": [
+        {
+          "label": "Title includes brand/entity",
+          "score": 10,
+          "max": 10,
+          "evidence": "Title \"DefaultAnswer - How AI decides which websites to r...\" includes brand name"
+        },
+        {
+          "label": "Meta description present",
+          "score": 5,
+          "max": 5,
+          "evidence": "Meta description found (139 chars)"
+        },
+        {
+          "label": "H1 describes product/category",
+          "score": 10,
+          "max": 10,
+          "evidence": "H1 \"How AI decides which websites to recommend...\" clearly describes the offering"
+        }
+      ]
+    },
+    "structuralComprehension": {
+      "score": 20,
+      "max": 20,
+      "checks": [
+        {
+          "label": "H1 heading present",
+          "score": 5,
+          "max": 5,
+          "evidence": "Found 1 H1 heading(s)"
+        },
+        {
+          "label": "Multiple H2 headings",
+          "score": 5,
+          "max": 5,
+          "evidence": "Found 7 H2 headings providing good structure"
+        },
+        {
+          "label": "Headings are descriptive",
+          "score": 10,
+          "max": 10,
+          "evidence": "Headings are descriptive and meaningful"
+        }
+      ]
+    },
+    "answerabilitySignals": {
+      "score": 20,
+      "max": 20,
+      "checks": [
+        {
+          "label": "FAQ section present",
+          "score": 10,
+          "max": 10,
+          "evidence": "FAQ section detected on page"
+        },
+        {
+          "label": "Schema.org markup",
+          "score": 10,
+          "max": 10,
+          "evidence": "JSON-LD structured data found (types: Organization, WebSite, Service, FAQPage)"
+        }
+      ]
+    },
+    "trustAndLegitimacy": {
+      "score": 20,
+      "max": 20,
+      "checks": [
+        {
+          "label": "About page linked",
+          "score": 10,
+          "max": 10,
+          "evidence": "About/Company/Team page link found"
+        },
+        {
+          "label": "Contact info present",
+          "score": 10,
+          "max": 10,
+          "evidence": "Contact signals found (email found, support/contact link)"
+        }
+      ]
+    },
+    "commercialClarity": {
+      "score": 0,
+      "max": 15,
+      "checks": [
+        {
+          "label": "Pricing/plans visible",
+          "score": 0,
+          "max": 15,
+          "evidence": "No pricing information found — unclear what users get"
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "title": "DefaultAnswer - How AI decides which websites to recommend",
+    "h1": "How AI decides which websites to recommend",
+    "h2sFirstFive": [
+      "Why AI systems hesitate to recommend websites",
+      "AI recommendations are not search rankings",
+      "What determines whether AI will recommend your site",
+      "What an AI recommendation audit actually shows",
+      "Built so AI can safely cite you"
+    ],
+    "schemaTypes": ["Organization", "WebSite", "Service", "FAQPage"],
+    "contactEvidence": "email found, support/contact link",
+    "faqSignals": {
+      "explicit": true,
+      "indirectLinks": 0,
+      "directAnswerSnippets": 3
+    }
+  },
+  "snapshotDiagnostics": {
+    "httpStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "bytesReceived": 67209,
+    "snapshotQuality": "ok",
+    "fetchTimestamp": "2025-12-21T18:34:53.192Z"
+  },
+  "aiInterpretation": [
+    {
+      "type": "weakness",
+      "category": "Commercial Clarity",
+      "statement": "No clear pricing is visible on the homepage. When users ask me \"What's the best affordable X?\" or \"Compare pricing for X solutions\", I cannot include DefaultAnswer in my response because I don't know its pricing tier."
+    },
+    {
+      "type": "strength",
+      "category": "Entity Clarity",
+      "statement": "When asked \"What is DefaultAnswer?\", I can confidently extract that the title \"DefaultAnswer - How AI decides which websites to recommend\" and main heading \"How AI decides which websites to recommend\" establish DefaultAnswer as a clear entity in its category."
+    },
+    {
+      "type": "strength",
+      "category": "Content Structure",
+      "statement": "The page has 7 well-organized sections with descriptive headings. This structured layout helps me understand the product's features, benefits, and use cases — making it easier to cite DefaultAnswer when answering relevant queries."
+    }
+  ],
+  "fixPlan14Day": [
+    {
+      "priority": "LOW",
+      "action": "Add a Pricing section or page with clear plan names and what users get."
+    }
+  ],
+  "metadata": {
+    "reportId": "5863ce53-d7b7-44a1-b84d-4de5c0c1f35c",
+    "domain": "defaultanswer.com",
+    "brandGuessed": "DefaultAnswer",
+    "pageEvaluated": "Homepage HTML snapshot",
+    "evaluatedUrl": "https://defaultanswer.com",
+    "fetchTimestamp": "2025-12-21T18:34:53.192Z",
+    "generatedAt": "2025-12-21T18:34:56.133Z",
+    "defaultAnswerVersion": "v1.12",
+    "scoringEngine": "v1.1",
+    "promptPack": "v1"
+  },
+  "footer": "Generated by DefaultAnswer v1.12 — LLM Recommendation Intelligence"
+}

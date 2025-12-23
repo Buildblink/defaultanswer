@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 function getBlogSlugs() {
-  const blogDir = path.join(process.cwd(), "app", "blog");
+  const blogDir = path.join(process.cwd(), "app", "(marketing)", "blog");
   const entries = fs.readdirSync(blogDir, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isDirectory())
@@ -19,8 +19,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "",
     "/methodology",
     "/blog",
+    "/reports",
     "/about",
     "/contact",
+    "/reports/defaultanswer.com",
   ];
 
   const blogRoutes = blogSlugs.map((slug) => `/blog/${slug}`);
