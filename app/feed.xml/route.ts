@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { blogPosts } from "../../blog/posts";
+import { blogPosts } from "@/app/(marketing)/blog/posts";
 
 const siteUrl = "https://www.defaultanswer.com";
+
+export const runtime = "nodejs";
 
 function escapeXml(value: string) {
   return value
