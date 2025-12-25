@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReportData } from "@/lib/defaultanswer/report-to-markdown";
+import { readColdSummaryFromStorage } from "./cold-summary-storage";
 
 type Props = {
   reportData: ReportData;
@@ -26,10 +27,19 @@ export function ExportButtons({ reportData }: Props) {
     setLoading("md");
     setError(null);
     try {
+      const stored = readColdSummaryFromStorage(reportData.metadata.reportId);
+      const enriched: ReportData = stored
+        ? {
+            ...reportData,
+            coldSummary: stored.singleRun,
+            coldSummaryMulti: stored.multiRun,
+            coldSummaryByMode: stored.byMode,
+          }
+        : reportData;
       const res = await fetch("/api/defaultanswer/report/export/markdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report: reportData }),
+        body: JSON.stringify({ report: enriched }),
       });
       const data = await res.json();
       if (!data.ok || !data.markdown) {
@@ -49,10 +59,19 @@ export function ExportButtons({ reportData }: Props) {
     setLoading("pdf");
     setError(null);
     try {
+      const stored = readColdSummaryFromStorage(reportData.metadata.reportId);
+      const enriched: ReportData = stored
+        ? {
+            ...reportData,
+            coldSummary: stored.singleRun,
+            coldSummaryMulti: stored.multiRun,
+            coldSummaryByMode: stored.byMode,
+          }
+        : reportData;
       const res = await fetch("/api/defaultanswer/report/export/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report: reportData }),
+        body: JSON.stringify({ report: enriched }),
       });
       if (!res.ok) {
         let msg = `PDF export failed (${res.status})`;
@@ -80,7 +99,7 @@ export function ExportButtons({ reportData }: Props) {
         type="button"
         onClick={exportMarkdown}
         disabled={loading !== null}
-        className="px-3 py-1.5 rounded bg-stone-900 text-white text-xs font-semibold disabled:opacity-60"
+        className="inline-flex items-center justify-center rounded-2xl bg-stone-900 px-4 py-2 text-xs font-semibold text-stone-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800 disabled:opacity-60 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
       >
         {loading === "md" ? "Exporting..." : "Export Markdown"}
       </button>
@@ -88,7 +107,7 @@ export function ExportButtons({ reportData }: Props) {
         type="button"
         onClick={exportPdf}
         disabled={loading !== null}
-        className="px-3 py-1.5 rounded bg-stone-700 text-white text-xs font-semibold disabled:opacity-60"
+        className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2 text-xs font-semibold text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 disabled:opacity-60 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
       >
         {loading === "pdf" ? "Exporting..." : "Export PDF"}
       </button>

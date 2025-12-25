@@ -18,21 +18,51 @@ import { DEFAULTANSWER_VERSION } from "@/lib/defaultanswer/version";
 import { decideWhatToFixFirst } from "@/lib/defaultanswer/recommendations";
 import type { ReadinessState } from "@/lib/defaultanswer/belief-state";
 import { dedupeFixPlanByIntent } from "@/lib/defaultanswer/recommendations";
+import {
+  beliefPrimaryUncertainty,
+  beliefSupportingSignals,
+  beliefSummaryText,
+  buildCompetitiveDeltaBullets,
+  compactSentence,
+  generateConfidenceDebateBullets,
+  getAnalysisStatus,
+  getReadinessClassification,
+  getScoreColor,
+  groupByCategory,
+  safeHostname,
+  uniq,
+  biggestGapCategoryFromBreakdown,
+} from "@/lib/report/report-helpers";
 import { SimulationPanel } from "./simulation-panel";
 import { LiveRecommendationCheck } from "./live-recommendation-check";
 import { diffScans, fetchLatestScans, isHistoryConfigured, type ScanDiff } from "@/lib/defaultanswer/history";
 import type { FetchDiagnostics } from "@/lib/defaultanswer/scoring";
 import { ExportButtons } from "./export-buttons";
+import type { ExampleReportContext, ExampleReportData } from "@/app/reports/example-report-context";
+import { ReportRenderer, ReportV2Sections } from "@/components/report/ReportRenderer";
+import { Card } from "@/app/(landing)/ui/Card";
+import { Pill } from "@/app/(landing)/ui/Pill";
+import { SectionTitle } from "@/app/(landing)/ui/SectionTitle";
+import { buildReportV2 } from "@/lib/report/report-v2";
+import { resolveLiveProofCategory } from "@/lib/report/liveproof-prompts";
+import {
+  fetchLastScan,
+  fetchRecentScans,
+  insertScanSummary,
+  normalizeUrl,
+  type ReportScanSummary,
+} from "@/lib/report/history";
+import { getEntitlements } from "@/lib/auth/entitlements";
+import { HistoryProPanel } from "@/components/report/HistoryProPanel";
+import { ReportShell } from "@/components/report/ReportShell";
+import { CollapsibleSection } from "@/components/report/CollapsibleSection";
+import { ExpandCollapseAll } from "@/components/report/ExpandCollapseAll";
 
 type Props = {
   params: Promise<{ reportId: string }>;
   searchParams: Promise<{ url?: string; data?: string }>;
-};
-
-type CompetitiveDeltaBullet = {
-  query: string;
-  competitorAdvantage: string;
-  whyLose: string;
+  exampleContext?: ExampleReportContext;
+  exampleReport?: ExampleReportData;
 };
 
 // Placeholder data for fallback
@@ -50,6 +80,7 @@ const PLACEHOLDER_ANALYSIS: AnalysisResult = {
     h1s: [],
     h2s: [],
     h3s: [],
+    visibleTextExcerpt: undefined,
     hasFAQ: false,
     hasIndirectFAQ: false,
     hasDirectAnswerBlock: false,
@@ -74,12 +105,12 @@ const PLACEHOLDER_ANALYSIS: AnalysisResult = {
   fetchDiagnostics: undefined,
 };
 
-export default async function ReportPage({ params, searchParams }: Props) {
+export default async function ReportPage({ params, searchParams, exampleContext, exampleReport }: Props) {
+  const isExampleReport = Boolean(exampleContext?.isExample);
+  const { isPro } = await getEntitlements();
+  const userId: string | null = null;
   const { reportId } = await params;
   const { url = "", data: encodedData } = await searchParams;
-
-  // Extract domain and brand from URL
-  const { domain, brand } = extractBrandInfo(url);
 
   // Decode analysis data if present
   let analysis: AnalysisResult = PLACEHOLDER_ANALYSIS;
@@ -95,16 +126,37 @@ export default async function ReportPage({ params, searchParams }: Props) {
     }
   }
 
-  // Use extracted brand if available, otherwise use URL-derived
-  const displayBrand = analysis.extracted.brandGuess || brand;
-  const displayDomain = analysis.extracted.domain || domain;
+  const ex = analysis.extracted;
+  const evaluatedUrl = ex.evaluatedUrl || "";
+  const displayDomain = ex.domain || (evaluatedUrl ? safeHostname(evaluatedUrl) : "");
+  const displayBrand = ex.brandGuess || displayDomain || "your site";
+  const coldSummarySnapshot = {
+    title: ex.title,
+    metaDescription: ex.metaDescription,
+    h1: ex.h1s?.[0],
+    excerpt: ex.visibleTextExcerpt,
+  };
+  const titleBreakdown = analysis.breakdown.find((item) => item.label === "Title includes brand/entity");
+  const h1Breakdown = analysis.breakdown.find((item) => item.label === "H1 describes product/category");
+  const hasEntityClarity =
+    Boolean(titleBreakdown && titleBreakdown.points >= 7 && h1Breakdown && h1Breakdown.points >= 7) ||
+    Boolean(ex.title && ex.h1s.length > 0);
+  const existingSignals = {
+    hasFaq: Boolean(ex.hasFAQ),
+    hasSchema: Boolean(ex.hasSchemaJsonLd || ex.hasSchema || (ex.schemaTypes || []).length > 0),
+    hasPricing: Boolean(ex.hasPricing),
+    hasAbout: Boolean(ex.hasAbout),
+    hasContact: Boolean(ex.hasContactSignals),
+    hasEntityClarity,
+    visibleTextExcerptPresent: Boolean(ex.visibleTextExcerpt && ex.visibleTextExcerpt.trim()),
+  };
 
   // Get prompt pack for this brand
   const prompts = getPromptPack({ brand: displayBrand, domain: displayDomain, category: "solution" });
 
   // Determine score label and status
   const scoreLabel = getScoreLabel(analysis.score);
-  const generatedAt = new Date().toISOString();
+  const generatedAt = exampleReport?.metadata.generatedAt || new Date().toISOString();
   const analysisStatus = getAnalysisStatus(analysis);
   const hasAnalysis = !isAnalysisMissing;
   const isRealAnalysis = hasAnalysis;
@@ -121,7 +173,9 @@ export default async function ReportPage({ params, searchParams }: Props) {
     hasAnalysis,
     analysisStatus
   );
-  const readinessExplanation = readiness.explanation;
+  const readinessExplanation = exampleReport?.summary.verdict || readiness.explanation;
+  const promptPackVersion = exampleReport?.metadata.promptPack || PROMPT_PACK_VERSION;
+  const defaultAnswerVersion = exampleReport?.metadata.defaultAnswerVersion || DEFAULTANSWER_VERSION;
   const fetchStatus = analysis.fetchDiagnostics?.status;
   const isAccessRestricted =
     analysis.snapshotQuality === "access_restricted" ||
@@ -139,7 +193,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
 
   let historyDiff: ScanDiff | null = null;
   let historyMessage: string | null = null;
-  if (isHistoryConfigured() && url) {
+  if (!isExampleReport && isHistoryConfigured() && url) {
     try {
       const latestRes = await fetchLatestScans(url);
       if (latestRes.ok && latestRes.latest) {
@@ -252,134 +306,291 @@ export default async function ReportPage({ params, searchParams }: Props) {
       domain: displayDomain,
       brand: displayBrand,
       timestamp: generatedAt,
-      version: DEFAULTANSWER_VERSION,
+      version: defaultAnswerVersion,
       pageEvaluated: analysis.extracted.evaluatedPage || "Homepage HTML snapshot",
       evaluatedUrl: analysis.extracted.evaluatedUrl || url,
       canonicalUrl: analysis.extracted.canonicalUrl,
       fetchTimestamp: analysis.extracted.fetchedAt,
     },
+    proHistory: {
+      isPro,
+      access: isPro,
+      current: undefined,
+      previous: null,
+      recent: [],
+      message: isPro ? "First scan saved." : "Unlock monitoring to save scan history.",
+    },
+    existingSignals,
+  };
+
+  const reportV2Snapshot = buildReportV2(analysis, {
+    maxBullets: 6,
+    promptCountPerBucket: 3,
+    includeSimulatedAiProof: true,
+    includeCitationReadiness: true,
+    includeImplementationExamples: true,
+    includeQuoteReady: true,
+  });
+  const liveProofCategory = resolveLiveProofCategory(analysis);
+  const baseCategory =
+    liveProofCategory.label?.trim() || "AI recommendation audit tool";
+  let defaultLiveProofCategory = `${baseCategory} software`;
+  if (!analysis.extracted.hasPricing) {
+    defaultLiveProofCategory = `pricing for ${baseCategory} tools`;
+  } else if (!analysis.extracted.hasFAQ) {
+    defaultLiveProofCategory = `best ${baseCategory} software`;
+  } else {
+    defaultLiveProofCategory = `best ${baseCategory} tools`;
+  }
+
+  const normalizedUrl = normalizeUrl(evaluatedUrl || url);
+  const currentScan: ReportScanSummary = {
+    user_id: userId,
+    normalized_url: normalizedUrl,
+    report_id: reportId,
+    score: analysis.score,
+    readiness: readiness.label,
+    coverage_overall: reportV2Snapshot.coverage.overall,
+    has_faq: analysis.extracted.hasFAQ,
+    has_schema: analysis.extracted.hasSchemaJsonLd || analysis.extracted.hasSchema,
+    has_pricing: analysis.extracted.hasPricing,
+    primary_blocker:
+      reportV2Snapshot.aiProof[0]?.primaryBlocker || reportV2Snapshot.coverage.nextMove,
+  };
+
+  let previousScan: ReportScanSummary | null = null;
+  let recentScans: ReportScanSummary[] = [];
+  let proHistoryMessage = reportData.proHistory?.message || null;
+  if (isPro && normalizedUrl) {
+    previousScan = await fetchLastScan(normalizedUrl, userId);
+    recentScans = await fetchRecentScans(normalizedUrl, userId, 10);
+    await insertScanSummary({
+      userId,
+      normalizedUrl,
+      reportId,
+      score: currentScan.score,
+      readiness: currentScan.readiness,
+      coverageOverall: currentScan.coverage_overall,
+      hasFaq: currentScan.has_faq,
+      hasSchema: currentScan.has_schema,
+      hasPricing: currentScan.has_pricing,
+      primaryBlocker: currentScan.primary_blocker,
+    });
+    proHistoryMessage = previousScan ? null : "First scan saved.";
+  }
+
+  reportData.proHistory = {
+    isPro,
+    access: Boolean(isPro && userId),
+    current: currentScan,
+    previous: previousScan,
+    recent: recentScans,
+    message: proHistoryMessage || undefined,
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100">
-      {/* Document Header */}
-      <header className="border-b border-stone-200 dark:border-stone-800 print:border-black">
-        <div className="max-w-3xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link
-              href="/defaultanswer"
-              className="text-sm text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 print:hidden"
-            >
-              ← Back to DefaultAnswer
-            </Link>
-            <span className="text-xs font-mono text-stone-400 hidden sm:inline">
-              DefaultAnswer Report
-            </span>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        {/* Document Title Block */}
-        <div className="mb-10 pb-6 border-b border-stone-200 dark:border-stone-800">
-          <h1 className="text-3xl font-bold tracking-tight">
-            DefaultAnswer Report: {displayDomain || "Unknown Domain"}
-          </h1>
-          <p className="mt-2 text-stone-600 dark:text-stone-400">
-            LLM Recommendation Analysis for <code className="bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-sm">{url || "N/A"}</code>
-          </p>
-          <div className="mt-4 flex items-center gap-4 text-sm text-stone-500">
-            {hasAnalysis ? (
+    <ReportRenderer
+      reportData={reportData}
+      analysis={analysis}
+      entitlements={{ isPro }}
+      contextFlags={{ isExample: isExampleReport }}
+    >
+      {({ reportV2 }) => {
+        const reportSummary = reportV2 || reportV2Snapshot;
+        const primaryBlockerSummary =
+          reportSummary?.aiProof?.[0]?.primaryBlocker ||
+          reportSummary?.coverage?.nextMove ||
+          "Primary blocker unavailable";
+        const navItems = [
+          { id: "fix-first", label: "Fix this first", visible: true },
+          { id: "right-now", label: "Right now", visible: Boolean(reportV2) },
+          { id: "cold-ai-summary", label: "Cold AI summary", visible: Boolean(reportV2) },
+          { id: "live-proof", label: "Live Proof", visible: Boolean(reportV2?.aiProof.length) },
+          { id: "ai-proof", label: "AI proof", visible: Boolean(reportV2?.aiProof.length) },
+          { id: "reasoning", label: "Reasoning", visible: Boolean(reportV2?.reasoning.steps.length) },
+          {
+            id: "retrieve-vs-guess",
+            label: "Retrieve vs guess",
+            visible:
+              Boolean(reportV2?.retrieveVsInfer.retrievable.length) ||
+              Boolean(reportV2?.retrieveVsInfer.inferred.length),
+          },
+          { id: "coverage", label: "Coverage", visible: Boolean(reportV2) },
+          { id: "competitive", label: "Competitive snapshot", visible: Boolean(reportV2?.competitiveSnapshot.rows.length) },
+          {
+            id: "win-queries",
+            label: "Win queries",
+            visible:
+              Boolean(reportV2?.promptRadar.winnableNow.length) ||
+              Boolean(reportV2?.promptRadar.oneFixAway.length) ||
+              Boolean(reportV2?.promptRadar.blocked.length),
+          },
+          { id: "examples", label: "Examples", visible: Boolean(reportV2) },
+          { id: "quote-ready", label: "Quote-ready copy", visible: Boolean(reportV2?.quoteReady.length) },
+          { id: "citation", label: "Citation readiness", visible: Boolean(reportV2) },
+          { id: "history", label: "History", visible: !isExampleReport && isHistoryConfigured() },
+          { id: "evidence", label: "Evidence", visible: true },
+        ];
+        return (
+          <ReportShell
+            summary={{
+              domain: {
+                label: "Evaluated domain",
+                value: displayDomain || "Unknown Domain",
+                title: displayDomain || "Unknown Domain",
+              },
+              score: {
+                label: scoreLabel,
+                value: analysis.score >= 0 ? `${analysis.score}/100` : "Pending",
+              },
+              readiness: {
+                label: "Readiness",
+                value: readiness.label,
+              },
+              blocker: {
+                label: "Primary blocker",
+                value: primaryBlockerSummary,
+                title: primaryBlockerSummary,
+              },
+            }}
+            actions={
               <>
-                <span>
-                  Default Answer Score™:{" "}
-                  <strong className={getScoreColor(analysis.score)}>
-                    {analysis.score >= 0 ? `${analysis.score}/100` : "Pending"}
-                  </strong>
-                </span>
-                <span>•</span>
-                <span>Status: {displayStatusLabel}</span>
-                <span>•</span>
-                <AnalysisStatusBadge status={analysisStatus} snapshotQuality={analysis.snapshotQuality} />
-                {isPlaceholder && (
-                  <>
-                    <span>•</span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300"
-                      title="Some signals could not be evaluated. The report still reflects best-effort AI interpretation."
-                    >
-                      Snapshot limited
-                    </span>
-                  </>
-                )}
+                <ExportButtons reportData={reportData} />
+                <CopyMarkdownButton reportData={reportData} reportId={reportId} compact />
+                {!isExampleReport ? (
+                  <ReportClientTools reportId={reportId} url={url} encodedData={encodedData} className="mt-0" />
+                ) : null}
               </>
-            ) : (
-              <span className="text-amber-600">Analysis pending — submit a URL to see your score</span>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <ExportButtons reportData={reportData} />
+            }
+            navItems={navItems}
+          >
+            <div>
+              <Card>
+          {isExampleReport && exampleContext ? (
+            <div className="mb-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">
+              <p className="font-semibold text-stone-900 dark:text-stone-100">
+                {exampleContext.disclosureTitle}
+              </p>
+              <p className="mt-1 text-stone-600 dark:text-stone-400">
+                {exampleContext.disclosureText}
+              </p>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="mt-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                DefaultAnswer Report
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight">
+                DefaultAnswer Report: {displayDomain || "Unknown Domain"}
+              </h1>
+              <p className="text-base leading-relaxed text-stone-600 dark:text-stone-300">
+                LLM Recommendation Analysis for{" "}
+                <code className="bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-sm">
+                  {url || "N/A"}
+                </code>
+              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500">
+                {hasAnalysis ? (
+                  <>
+                    <Pill>
+                      {exampleReport?.summary.scoreLabel || "Default Answer Score"}: {" "}
+                      <strong className={getScoreColor(analysis.score)}>
+                        {analysis.score >= 0 ? `${analysis.score}/100` : "Pending"}
+                      </strong>
+                    </Pill>
+                    <Pill>Status: {displayStatusLabel}</Pill>
+                    <AnalysisStatusBadge status={analysisStatus} snapshotQuality={analysis.snapshotQuality} />
+                    {isPlaceholder && (
+                      <Pill>
+                        Snapshot limited
+                      </Pill>
+                    )}
+                  </>
+                ) : (
+                  <Pill>Analysis pending ? submit a URL to see your score</Pill>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col items-start gap-3 lg:items-end">
+              <Link
+                href="/defaultanswer"
+                className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-5 py-2 text-sm font-semibold text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
+              >
+                Back to DefaultAnswer
+              </Link>
             </div>
           </div>
 
-          <div className="mt-6">
-            <CopyMarkdownButton reportData={reportData} reportId={reportId} />
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {!isExampleReport && (
+              <>
+                <CopyDebugJsonButton reportId={reportId} url={url} analysis={analysis} />
+              </>
+            )}
           </div>
 
-          <ReportClientTools reportId={reportId} url={url} encodedData={encodedData} />
+          {!isExampleReport ? <HowToUseThisReport /> : null}
+        </Card>
 
-          <div className="mt-3 print:hidden">
-            <CopyDebugJsonButton reportId={reportId} url={url} analysis={analysis} />
-          </div>
-
-          <HowToUseThisReport />
-        </div>
+        <HistoryProPanel
+          isPro={Boolean(reportData.proHistory?.isPro)}
+          message={reportData.proHistory?.message}
+          current={reportData.proHistory?.current || null}
+          previous={reportData.proHistory?.previous || null}
+          recent={reportData.proHistory?.recent || []}
+        />
 
         {/* 1) Belief */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">My current belief about your site</h2>
-          <div className="border border-stone-200 dark:border-stone-800 rounded-lg p-5 bg-stone-50 dark:bg-stone-900">
-            <div className="flex flex-col gap-3">
-              <ReadinessClassification
-                analysis={analysis}
-                hasAnalysis={hasAnalysis}
-                explanationOverride={readinessExplanation}
-                status={analysisStatus}
-              />
+          <SectionTitle title="My current belief about your site" />
+          <div className="mt-4">
+            <Card>
+              <div className="flex flex-col gap-3">
+                <ReadinessClassification
+                  analysis={analysis}
+                  hasAnalysis={hasAnalysis}
+                  explanationOverride={readinessExplanation}
+                  status={analysisStatus}
+                />
 
-              <p className="text-stone-800 dark:text-stone-200 leading-relaxed">
-                {beliefSummaryText({
-                  brand: displayBrand || displayDomain || "your site",
-                  readinessLabel: readiness.label,
-                  confidenceScore: analysis.score,
-                  supporting: supportingSignals.slice(0, 2),
-                  primaryUncertainty,
-                  status: analysisStatus,
-                })}
-              </p>
+                <p className="text-stone-800 dark:text-stone-200 leading-relaxed">
+                  {beliefSummaryText({
+                    brand: displayBrand || displayDomain || "your site",
+                    readinessLabel: readiness.label,
+                    confidenceScore: analysis.score,
+                    supporting: supportingSignals.slice(0, 2),
+                    primaryUncertainty,
+                    status: analysisStatus,
+                  })}
+                </p>
 
-              <p className="text-sm text-stone-600 dark:text-stone-400">
-                Based on what I can retrieve today. This evaluates <strong>AI recommendation readiness</strong>, not SEO rankings or traffic.
-              </p>
-            </div>
+                <p className="text-sm text-stone-600 dark:text-stone-400">
+                  Based on what I can retrieve today. This evaluates <strong>AI recommendation readiness</strong>, not SEO rankings or traffic.
+                </p>
+              </div>
+            </Card>
           </div>
         </section>
 
         {/* 2) Delta */}
-        <BeliefHistory
-          domain={displayDomain || "unknown"}
-          reportId={reportId}
-          timestamp={generatedAt}
-          readiness_state={readiness.label as ReadinessState}
-          confidence_score={analysis.score}
-          blocking_factors={beliefBlockingFactors(analysis, analysisStatus)}
-          supporting_signals={supportingSignals}
-          primary_uncertainty={primaryUncertainty}
-        />
+        {!isExampleReport && (
+          <BeliefHistory
+            domain={displayDomain || "unknown"}
+            reportId={reportId}
+            timestamp={generatedAt}
+            readiness_state={readiness.label as ReadinessState}
+            confidence_score={analysis.score}
+            blocking_factors={beliefBlockingFactors(analysis, analysisStatus)}
+            supporting_signals={supportingSignals}
+            primary_uncertainty={primaryUncertainty}
+          />
+        )}
 
         {/* 3) Debate */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Why I’m not confident recommending you yet</h2>
-          <ul className="list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
+          <SectionTitle title="Why I’m not confident recommending you yet" />
+          <ul className="mt-4 list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
             {generateConfidenceDebateBullets(analysis, displayBrand, analysisStatus).map((b) => (
               <li key={b}>{b}</li>
             ))}
@@ -390,32 +601,54 @@ export default async function ReportPage({ params, searchParams }: Props) {
         </section>
 
         {/* 4) One causal change */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">{oneChangeTitle}</h2>
-          {whatToFixDecision.kind === "noCriticalFixes" ? (
-            <NoCriticalFixesDetected />
-          ) : (
-            <OneChangeThatIncreasesConfidence
-              fix={dominantFixItem}
-              guidance={topFixGuidance}
-              brandName={displayBrand}
-            />
-          )}
-        </section>
+        <CollapsibleSection id="fix-first" title={oneChangeTitle} defaultOpen>
+          <div className="mt-4">
+            {whatToFixDecision.kind === "noCriticalFixes" ? (
+              <NoCriticalFixesDetected
+                note={isExampleReport ? exampleContext?.summaryNoteOverride || exampleReport?.summary.note : undefined}
+              />
+            ) : (
+              <OneChangeThatIncreasesConfidence
+                fix={dominantFixItem}
+                guidance={topFixGuidance}
+                brandName={displayBrand}
+              />
+            )}
+          </div>
+        </CollapsibleSection>
+
+        <div id="report-disclosure" className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Report sections
+            </div>
+            <ExpandCollapseAll targetId="report-disclosure" />
+          </div>
+
+        <ReportV2Sections
+          reportV2={reportV2}
+          reportId={reportId}
+          isPro={isPro}
+          evaluatedUrl={analysis.extracted.evaluatedUrl || url}
+          brandName={displayBrand}
+          domain={displayDomain}
+          defaultModel={process.env.OPENAI_MODEL || "gpt-4o-mini"}
+          categoryLabel={liveProofCategory.label}
+          defaultLiveProofCategory={defaultLiveProofCategory}
+          coldSummarySnapshot={coldSummarySnapshot}
+          coldSummaryExistingSignals={existingSignals}
+        />
 
         {/* Competitive Delta */}
         {analysisStatus === "ok" && competitiveDelta.length >= 2 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold mb-4">Where AI Might Recommend Alternatives Instead</h2>
-            <p className="text-stone-600 dark:text-stone-400 mb-3">
-              Based on gaps in this snapshot, here is where competitors gain citation preference.
-            </p>
-            <ul className="space-y-3">
+          <CollapsibleSection
+            title="Where AI Might Recommend Alternatives Instead"
+            subtitle="Based on gaps in this snapshot, here is where competitors gain citation preference."
+          >
+            <ul className="mt-4 space-y-3">
               {competitiveDelta.map((b, idx) => (
-                <li
-                  key={idx}
-                  className="border border-stone-200 dark:border-stone-800 rounded-lg p-4 bg-white dark:bg-stone-900"
-                >
+                <li key={idx}>
+                  <Card>
                   <p className="text-stone-800 dark:text-stone-200">
                     <span className="font-semibold">When users ask:</span> “{b.query}”
                   </p>
@@ -425,35 +658,26 @@ export default async function ReportPage({ params, searchParams }: Props) {
                   <p className="text-stone-700 dark:text-stone-300 mt-1">
                     <span className="font-semibold">Why you lose here:</span> {b.whyLose}
                   </p>
+                  </Card>
                 </li>
               ))}
             </ul>
-          </section>
+          </CollapsibleSection>
         )}
 
         {/* Section: How AI Interprets Your Brand (V1.2 renamed in V1.3) */}
         {isRealAnalysis && analysis.reasoning && analysis.reasoning.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold mb-4">How AI Interprets Your Brand</h2>
-            <p className="text-stone-600 dark:text-stone-400 mb-4">
-              Based on detected signals, here's how an LLM interprets {displayBrand}'s page:
-            </p>
+          <CollapsibleSection
+            title="How AI Interprets Your Brand"
+            subtitle={`Based on detected signals, here's how an LLM interprets ${displayBrand}'s page:`}
+          >
             <div className="space-y-4">
               {analysis.reasoning.map((bullet, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-4 rounded-lg border-l-4 ${
-                    bullet.impact === "positive" 
-                      ? "bg-emerald-50 dark:bg-emerald-950 border-emerald-500" 
-                      : bullet.impact === "negative"
-                      ? "bg-red-50 dark:bg-red-950 border-red-500"
-                      : "bg-stone-50 dark:bg-stone-900 border-stone-400"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
+                <Card key={idx}>
+                  <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold uppercase tracking-wide ${
-                      bullet.impact === "positive" 
-                        ? "text-emerald-700 dark:text-emerald-300" 
+                      bullet.impact === "positive"
+                        ? "text-emerald-700 dark:text-emerald-300"
                         : bullet.impact === "negative"
                         ? "text-red-700 dark:text-red-300"
                         : "text-stone-600 dark:text-stone-400"
@@ -461,8 +685,8 @@ export default async function ReportPage({ params, searchParams }: Props) {
                       {bullet.signal}
                     </span>
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      bullet.impact === "positive" 
-                        ? "bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200" 
+                      bullet.impact === "positive"
+                        ? "bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200"
                         : bullet.impact === "negative"
                         ? "bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200"
                         : "bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300"
@@ -470,76 +694,80 @@ export default async function ReportPage({ params, searchParams }: Props) {
                       {bullet.impact === "positive" ? "Strength" : bullet.impact === "negative" ? "Weakness" : "Neutral"}
                     </span>
                   </div>
-                  <p className="text-stone-700 dark:text-stone-300 text-sm leading-relaxed italic">
+                  <p className="mt-2 text-sm leading-relaxed text-stone-700 dark:text-stone-300 italic">
                     "{bullet.interpretation}"
                   </p>
-                </div>
+                </Card>
               ))}
             </div>
             <p className="mt-4 text-stone-600 dark:text-stone-400 text-sm">
               These interpretations directly influence whether AI selects your brand as a default answer.
             </p>
-          </section>
+          </CollapsibleSection>
         )}
 
         {/* Section: History Diff */}
-        {isHistoryConfigured() && (
-          <section className="mb-10 border border-stone-200 dark:border-stone-800 rounded-lg p-4 bg-white dark:bg-stone-900">
-            <h2 className="text-xl font-semibold mb-2">What changed since last scan</h2>
-            {historyDiff ? (
-              <div className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
-                <p>Score change: {historyDiff.scoreDelta >= 0 ? "+" : ""}{historyDiff.scoreDelta}</p>
-                {historyDiff.readinessChanged && <p>Readiness changed.</p>}
-                {(historyDiff.signalChanges.gained.length > 0 || historyDiff.signalChanges.lost.length > 0) && (
-                  <div>
-                    {historyDiff.signalChanges.gained.length > 0 && <p>Gained: {historyDiff.signalChanges.gained.join(", ")}</p>}
-                    {historyDiff.signalChanges.lost.length > 0 && <p>Lost: {historyDiff.signalChanges.lost.join(", ")}</p>}
+        {!isExampleReport && isHistoryConfigured() && (
+          <CollapsibleSection id="history" title="What changed since last scan">
+            <div className="mt-4">
+              <Card>
+                {historyDiff ? (
+                  <div className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
+                    <p>Score change: {historyDiff.scoreDelta >= 0 ? "+" : ""}{historyDiff.scoreDelta}</p>
+                    {historyDiff.readinessChanged && <p>Readiness changed.</p>}
+                    {(historyDiff.signalChanges.gained.length > 0 || historyDiff.signalChanges.lost.length > 0) && (
+                      <div>
+                        {historyDiff.signalChanges.gained.length > 0 && <p>Gained: {historyDiff.signalChanges.gained.join(", ")}</p>}
+                        {historyDiff.signalChanges.lost.length > 0 && <p>Lost: {historyDiff.signalChanges.lost.join(", ")}</p>}
+                      </div>
+                    )}
+                    {historyDiff.breakdownChanges.length > 0 && (
+                      <div>
+                        Top movers:
+                        <ul className="list-disc list-inside">
+                          {historyDiff.breakdownChanges.map((b, idx) => (
+                            <li key={idx}>{b.category}: {b.label} ({b.delta >= 0 ? "+" : ""}{b.delta})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <p className="text-sm text-stone-600 dark:text-stone-400">{historyMessage || "This is your first scan."}</p>
                 )}
-                {historyDiff.breakdownChanges.length > 0 && (
-                  <div>
-                    Top movers:
-                    <ul className="list-disc list-inside">
-                      {historyDiff.breakdownChanges.map((b, idx) => (
-                        <li key={idx}>{b.category}: {b.label} ({b.delta >= 0 ? "+" : ""}{b.delta})</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-stone-600 dark:text-stone-400">{historyMessage || "This is your first scan."}</p>
-            )}
-            <div className="mt-3">
-              <Link href={`/defaultanswer/history?url=${encodeURIComponent(url)}`} className="text-amber-700 dark:text-amber-300 text-sm underline">
-                View scan history
-              </Link>
+                <div className="mt-3">
+                  <Link href={`/defaultanswer/history?url=${encodeURIComponent(url)}`} className="text-amber-700 dark:text-amber-300 text-sm underline">
+                    View scan history
+                  </Link>
+                </div>
+              </Card>
             </div>
-          </section>
+          </CollapsibleSection>
         )}
 
         {/* Section: Score Breakdown */}
         {analysis.breakdown.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold mb-4">Score Breakdown</h2>
-            <p className="text-stone-600 dark:text-stone-400 mb-4">
-              Your score is calculated from {analysis.breakdown.length} signals that influence LLM recommendations:
-            </p>
+          <CollapsibleSection
+            title="Score Breakdown"
+            subtitle={`Your score is calculated from ${analysis.breakdown.length} signals that influence LLM recommendations:`}
+          >
             <div className="space-y-4">
               {groupByCategory(analysis.breakdown).map(([category, items]) => (
-                <div key={category} className="border border-stone-200 dark:border-stone-800 rounded-lg overflow-hidden">
-                  <div className="bg-stone-100 dark:bg-stone-800 px-4 py-2 font-semibold text-sm">
-                    {category} ({items.reduce((sum, i) => sum + i.points, 0)}/{items.reduce((sum, i) => sum + i.max, 0)} pts)
+                <Card key={category}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100">
+                    <span>
+                      {category} ({items.reduce((sum, i) => sum + i.points, 0)}/{items.reduce((sum, i) => sum + i.max, 0)} pts)
+                    </span>
                   </div>
-                  <div className="divide-y divide-stone-100 dark:divide-stone-800">
+                  <div className="mt-3 divide-y divide-stone-100 dark:divide-stone-800">
                     {items.map((item, idx) => (
-                      <div key={idx} className="px-4 py-3 flex items-start gap-4">
+                      <div key={idx} className="py-3 flex items-start gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className={item.points === item.max ? "text-emerald-600" : item.points > 0 ? "text-amber-600" : "text-red-500"}>
                               {item.points === item.max ? "✓" : item.points > 0 ? "△" : "✗"}
                             </span>
-                            <span className="font-medium">{item.label}</span>
+                            <span className="font-medium text-stone-900 dark:text-stone-100">{item.label}</span>
                           </div>
                           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
                             {item.reason}
@@ -554,34 +782,46 @@ export default async function ReportPage({ params, searchParams }: Props) {
                     ))}
                   </div>
                   {category === "Error" && isAccessRestricted && (
-                    <div className="px-4 py-3 text-sm text-stone-600 dark:text-stone-400">
+                    <div className="mt-3 text-sm text-stone-600 dark:text-stone-400">
                       Many modern websites intentionally restrict automated access. While this can be appropriate for security, it reduces the likelihood of being recommended by AI systems that rely on verifiable, retrievable sources.
                     </div>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
-          </section>
+          </CollapsibleSection>
         )}
 
         {/* Evidence (What I saw) */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Evidence (What I saw)</h2>
+        <CollapsibleSection id="evidence" title="Evidence (What I saw)">
           {analysisStatus === "blocked" ? (
-            <p className="text-stone-600 dark:text-stone-400">No evidence available (fetch blocked).</p>
+            <div className="mt-4">
+              <Card>
+                <p className="text-stone-600 dark:text-stone-400">No evidence available (fetch blocked).</p>
+              </Card>
+            </div>
           ) : analysisStatus === "snapshot_incomplete" ? (
-            <p className="text-stone-600 dark:text-stone-400">
-              Evidence limited — HTML snapshot incomplete.
-            </p>
+            <div className="mt-4">
+              <Card>
+                <p className="text-stone-600 dark:text-stone-400">
+                  Evidence limited - HTML snapshot incomplete.
+                </p>
+              </Card>
+            </div>
           ) : analysis.score < 0 || !analysis.extracted.evidence ? (
-            <p className="text-stone-600 dark:text-stone-400">No evidence available (fetch blocked).</p>
+            <div className="mt-4">
+              <Card>
+                <p className="text-stone-600 dark:text-stone-400">No evidence available (fetch blocked).</p>
+              </Card>
+            </div>
           ) : (
-            <div className="space-y-3">
-              <details className="border border-stone-200 dark:border-stone-800 rounded-lg p-4 bg-white dark:bg-stone-900">
-                <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
+            <div className="mt-4 space-y-3">
+              <Card>
+                <details className="group">
+                  <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
                   Page text signals
-                </summary>
-                <div className="mt-3 space-y-2 text-sm text-stone-700 dark:text-stone-300">
+                  </summary>
+                  <div className="mt-3 space-y-2 text-sm text-stone-700 dark:text-stone-300">
                   <p><span className="font-semibold">Title:</span> {analysis.extracted.evidence.titleText || "—"}</p>
                   <p><span className="font-semibold">Meta description:</span> {analysis.extracted.evidence.metaDescription || "—"}</p>
                   <p><span className="font-semibold">H1:</span> {analysis.extracted.evidence.h1Text || "—"}</p>
@@ -598,22 +838,26 @@ export default async function ReportPage({ params, searchParams }: Props) {
                     )}
                   </div>
                 </div>
-              </details>
+                </details>
+              </Card>
 
-              <details className="border border-stone-200 dark:border-stone-800 rounded-lg p-4 bg-white dark:bg-stone-900">
-                <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
+              <Card>
+                <details className="group">
+                  <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
                   Schema / structured data
-                </summary>
-                <div className="mt-3 space-y-2 text-sm text-stone-700 dark:text-stone-300">
+                  </summary>
+                  <div className="mt-3 space-y-2 text-sm text-stone-700 dark:text-stone-300">
                   <p><span className="font-semibold">Schema types:</span> {analysis.extracted.evidence.schemaTypes?.length ? `[${analysis.extracted.evidence.schemaTypes.join(", ")}]` : "—"}</p>
                   <p><span className="font-semibold">JSON-LD sample:</span> {analysis.extracted.evidence.schemaRawSample || "—"}</p>
                 </div>
-              </details>
+                </details>
+              </Card>
 
-              <details className="border border-stone-200 dark:border-stone-800 rounded-lg p-4 bg-white dark:bg-stone-900">
-                <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
+              <Card>
+                <details className="group">
+                  <summary className="cursor-pointer font-semibold text-stone-800 dark:text-stone-200">
                   About / Contact / Answerability / Pricing
-                </summary>
+                  </summary>
                 <div className="mt-3 space-y-3 text-sm text-stone-700 dark:text-stone-300">
                   <div>
                     <p className="font-semibold">About evidence:</p>
@@ -646,6 +890,11 @@ export default async function ReportPage({ params, searchParams }: Props) {
                       <li>Indirect FAQ links: {analysis.extracted.evidence.faqEvidence?.indirectFaqLinks?.length ? analysis.extracted.evidence.faqEvidence.indirectFaqLinks.slice(0, 5).join(", ") : "—"}</li>
                       <li>Direct-answer snippets: {analysis.extracted.evidence.faqEvidence?.directAnswerSnippets?.length ? analysis.extracted.evidence.faqEvidence.directAnswerSnippets.slice(0, 3).join(" / ") : "—"}</li>
                     </ul>
+                    {isExampleReport && exampleReport?.evidence?.faqSignals ? (
+                      <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                        FAQ signals: explicit={String(exampleReport.evidence.faqSignals.explicit)}, indirectLinks={exampleReport.evidence.faqSignals.indirectLinks}, directAnswerSnippets={exampleReport.evidence.faqSignals.directAnswerSnippets}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <p className="font-semibold">Pricing evidence:</p>
@@ -660,21 +909,25 @@ export default async function ReportPage({ params, searchParams }: Props) {
                     )}
                   </div>
                 </div>
-              </details>
+                </details>
+              </Card>
             </div>
           )}
-        </section>
+        </CollapsibleSection>
 
         {/* Section: What AI Recommends Instead */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">What AI Recommends Instead</h2>
-          <p className="text-stone-600 dark:text-stone-400 mb-4">
-            {isRealAnalysis 
+        <CollapsibleSection
+          title="What AI Recommends Instead"
+          subtitle={
+            isRealAnalysis
               ? "Based on your score, here's how you likely compare to competitors in LLM recommendations:"
-              : "When asked about this category, LLMs typically mention these types of competitors:"}
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+              : "When asked about this category, LLMs typically mention these types of competitors:"
+          }
+        >
+          <div className="mt-4">
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-stone-200 dark:border-stone-700">
                   <th className="py-2 pr-4 font-semibold">Competitor Type</th>
@@ -721,55 +974,64 @@ export default async function ReportPage({ params, searchParams }: Props) {
                   <td className="py-3 text-stone-600 dark:text-stone-400">Commercial clarity signals legitimate business</td>
                 </tr>
               </tbody>
-            </table>
+                </table>
+              </div>
+            </Card>
           </div>
-        </section>
+        </CollapsibleSection>
 
         {/* Section: Competitive Lens (V1.8) */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">
-            Where AI Likely Recommends Alternatives
-          </h2>
-          <p className="text-stone-600 dark:text-stone-400 mb-4">
-            Based on missing signals, AI tends to favor:
-          </p>
-          <ul className="list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
+        <CollapsibleSection
+          title="Where AI Likely Recommends Alternatives"
+          subtitle="Based on missing signals, AI tends to favor:"
+        >
+          <ul className="mt-4 list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
             {getCompetitiveLensBullets(analysis, analysisStatus).map((b) => (
               <li key={b}>{b}</li>
             ))}
           </ul>
-        </section>
+        </CollapsibleSection>
 
         {/* LLM Recommendation Simulation */}
-        <SimulationPanel domain={displayDomain || ""} url={url} analysis={analysis} />
+        <CollapsibleSection
+          title="LLM Recommendation Simulation (Beta)"
+          subtitle="Simulation based on your snapshot + general LLM behavior. No real-time model calls to competitors."
+        >
+          <SimulationPanel domain={displayDomain || ""} url={url} analysis={analysis} hideHeader compact />
+        </CollapsibleSection>
 
         {/* Live AI Recommendation Check */}
-        <LiveRecommendationCheck
-          reportId={reportId}
-          brand={displayBrand}
-          domain={displayDomain}
-          analysis={analysis}
-        />
+        <CollapsibleSection
+          title="Live AI Recommendation Check"
+          subtitle="Paste a real AI answer to see how your brand was positioned. No model calls are made."
+        >
+          <LiveRecommendationCheck
+            reportId={reportId}
+            brand={displayBrand}
+            domain={displayDomain}
+            analysis={analysis}
+            hideHeader
+            compact
+          />
+        </CollapsibleSection>
 
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Why Competitors Win</h2>
-          <p className="text-stone-700 dark:text-stone-300">
+        <CollapsibleSection title="Why Competitors Win">
+          <p className="mt-4 text-stone-700 dark:text-stone-300">
             When users ask open-ended questions, AI models favor sites that expose
             direct answers, structured sections, and explicit entity definitions.
             Sites missing those signals are often skipped — even when their
             underlying content quality is strong.
           </p>
-        </section>
+        </CollapsibleSection>
 
         {/* Section: Why You're Not the Default */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Why You're Not the Default</h2>
-          <p className="text-stone-600 dark:text-stone-400 mb-4">
+        <CollapsibleSection title="Why You're Not the Default">
+          <p className="mt-4 text-stone-600 dark:text-stone-400">
             LLMs select default answers based on authority signals, content structure, and entity recognition. 
             {isRealAnalysis ? " The following gaps were identified:" : ""}
           </p>
           {analysis.weaknesses.length > 0 ? (
-            <ol className="list-decimal list-inside space-y-2">
+            <ol className="mt-4 list-decimal list-inside space-y-2">
               {analysis.weaknesses.map((weakness, i) => (
                 <li key={i} className="text-stone-700 dark:text-stone-300">
                   {weakness}
@@ -777,25 +1039,22 @@ export default async function ReportPage({ params, searchParams }: Props) {
               ))}
             </ol>
           ) : (
-            <p className="text-emerald-600">No major weaknesses identified — your site has strong LLM signals!</p>
+            <p className="mt-4 text-emerald-600">No major weaknesses identified — your site has strong LLM signals!</p>
           )}
-        </section>
+        </CollapsibleSection>
 
         {/* Section: 14-Day Fix Plan */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">14-Day Fix Plan</h2>
-          <p className="text-stone-600 dark:text-stone-400 mb-4">
-            Prioritized actions to improve your Default Answer Score:
-          </p>
+        <CollapsibleSection
+          title="14-Day Fix Plan"
+          subtitle="Prioritized actions to improve your Default Answer Score:"
+        >
           {analysis.fixPlan.length > 0 ? (
-            <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               {analysis.fixPlan.map((item, i) => (
-                <div 
-                  key={i} 
-                  className="flex gap-4 p-3 bg-stone-50 dark:bg-stone-900 rounded border border-stone-200 dark:border-stone-800"
-                >
-                  <div className="flex-shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                <Card key={i}>
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
                       item.priority === "high"
                         ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                         : item.priority === "medium"
@@ -803,28 +1062,27 @@ export default async function ReportPage({ params, searchParams }: Props) {
                         : "bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-400"
                     }`}>
                       {item.priority.toUpperCase()}
-                    </span>
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-stone-800 dark:text-stone-200">{item.action}</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-stone-800 dark:text-stone-200">{item.action}</p>
-                  </div>
-                </div>
+                </Card>
               ))}
             </div>
           ) : (
             <p className="text-stone-500">No fixes needed — your site already shows strong, retrievable signals for AI recommendations.</p>
           )}
-        </section>
+        </CollapsibleSection>
 
         {/* Section: Evidence */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Evidence</h2>
-          <p className="text-stone-600 dark:text-stone-400 mb-4">
-            Prompt Pack {PROMPT_PACK_VERSION} — These prompts can be used to query LLMs about your brand. 
-            Copy any prompt to verify results yourself.
-          </p>
+        <CollapsibleSection
+          title="Evidence"
+          subtitle={`Prompt Pack ${promptPackVersion} ? These prompts can be used to query LLMs about your brand. Copy any prompt to verify results yourself.`}
+        >
 
-          <div className="space-y-6">
+          <div className="mt-4 space-y-6">
             <PromptCategory
               title="Best-in-Class Queries"
               description="Direct queries asking for the best option"
@@ -846,13 +1104,14 @@ export default async function ReportPage({ params, searchParams }: Props) {
               prompts={prompts.filter(p => p.category === "use_case")}
             />
           </div>
-        </section>
+        </CollapsibleSection>
 
         {/* Section: Metadata */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Metadata</h2>
-          <div className="bg-stone-50 dark:bg-stone-900 rounded border border-stone-200 dark:border-stone-800 p-4 font-mono text-sm">
-            <dl className="space-y-2">
+        <CollapsibleSection title="Metadata">
+          <div className="mt-4">
+            <Card>
+              <div className="font-mono text-sm">
+              <dl className="space-y-2">
               <div className="flex">
                 <dt className="w-40 text-stone-500">Report ID</dt>
                 <dd>{reportId}</dd>
@@ -909,12 +1168,18 @@ export default async function ReportPage({ params, searchParams }: Props) {
               </div>
               <div className="flex">
                 <dt className="w-40 text-stone-500">Prompt Pack</dt>
-                <dd>{PROMPT_PACK_VERSION}</dd>
+                <dd>{promptPackVersion}</dd>
               </div>
               <div className="flex">
                 <dt className="w-40 text-stone-500">DefaultAnswer Version</dt>
-                <dd>{DEFAULTANSWER_VERSION}</dd>
+                <dd>{defaultAnswerVersion}</dd>
               </div>
+              {isExampleReport && exampleReport?.metadata.scoringEngine ? (
+                <div className="flex">
+                  <dt className="w-40 text-stone-500">Scoring Engine</dt>
+                  <dd>{exampleReport.metadata.scoringEngine}</dd>
+                </div>
+              ) : null}
               <div className="flex">
                 <dt className="w-40 text-stone-500">Score</dt>
                 <dd>{analysis.score >= 0 ? `${analysis.score}/100` : "Pending"}</dd>
@@ -933,336 +1198,76 @@ export default async function ReportPage({ params, searchParams }: Props) {
                     : "Placeholder"}
                 </dd>
               </div>
-            </dl>
+              </dl>
+              </div>
+            </Card>
           </div>
           {!hasAnalysis && (
             <p className="mt-4 text-xs text-stone-400 italic">
               * This report shows placeholder data. Submit a URL to get real analysis.
             </p>
           )}
-        </section>
+        </CollapsibleSection>
+
+        {isExampleReport && (
+          <CollapsibleSection title="Learn more about how this works">
+            <ul className="mt-4 list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
+              <li>
+                <Link href="/methodology" className="underline hover:text-stone-900 dark:hover:text-stone-100">
+                  Methodology
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/blog/why-ai-recommendations-fail-even-when-you-rank-1"
+                  className="underline hover:text-stone-900 dark:hover:text-stone-100"
+                >
+                  Why AI recommendations fail even when you rank #1
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/blog/why-ai-skips-websites-that-dont-answer-questions-directly"
+                  className="underline hover:text-stone-900 dark:hover:text-stone-100"
+                >
+                  Why AI skips websites that don’t answer questions directly
+                </Link>
+              </li>
+            </ul>
+          </CollapsibleSection>
+        )}
+
+        </div>
 
         {/* CTA */}
-        <div className="mt-12 pt-8 border-t border-stone-200 dark:border-stone-800 text-center print:hidden">
-          <Link
-            href="/defaultanswer"
-            className="inline-block px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors"
-          >
-            Analyze Another URL
-          </Link>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-8 px-6 border-t border-stone-200 dark:border-stone-800 mt-12">
-        <div className="max-w-3xl mx-auto text-center text-sm text-stone-500 dark:text-stone-400">
-          <p>DefaultAnswer — LLM Recommendation Intelligence</p>
-          <p className="mt-1 text-xs">
-            This document is machine-readable and LLM-quotable.
+        {!isExampleReport ? (
+          <div className="mt-12 pt-8 border-t border-stone-200 dark:border-stone-800 text-center print:hidden">
+            <Link
+              href="/defaultanswer"
+              className="inline-flex items-center justify-center rounded-2xl bg-stone-900 px-5 py-3 text-sm font-semibold text-stone-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
+            >
+              Analyze Another URL
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-12 pt-8 border-t border-stone-200 dark:border-stone-800 text-center text-sm text-stone-500 dark:text-stone-400">
+            {exampleContext?.footerOverride || exampleReport?.footer}
           </p>
-        </div>
-      </footer>
-    </div>
+        )}
+            </div>
+          </ReportShell>
+        );
+      }}
+    </ReportRenderer>
   );
 }
 
-// ===== Helper Functions =====
-
-function getAnalysisStatus(analysis: AnalysisResult): AnalysisStatus {
-  if (analysis.analysisStatus) return analysis.analysisStatus as AnalysisStatus;
-  if (analysis.snapshotQuality && analysis.snapshotQuality !== "ok") return "snapshot_incomplete";
-  if (analysis.fetchDiagnostics?.ok === false && analysis.fetchDiagnostics.errorType === "blocked") {
-    return "blocked";
-  }
-  if (analysis.score < 0) return "error";
-  return "ok";
-}
-
-function extractBrandInfo(url: string): { domain: string; brand: string } {
-  if (!url) return { domain: "", brand: "" };
-  
-  try {
-    const urlObj = new URL(url);
-    const domain = urlObj.hostname.replace(/^www\./, "");
-    const brand = domain.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return { domain, brand };
-  } catch {
-    const cleaned = url.replace(/^https?:\/\//, "").replace(/^www\./, "");
-    const domain = cleaned.split("/")[0];
-    const brand = domain.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return { domain, brand };
-  }
-}
-
-function getScoreLabel(score: number): string {
-  if (score < 0) return "Pending";
-  if (score >= 80) return "Excellent";
-  if (score >= 60) return "Good";
-  if (score >= 40) return "Needs Work";
-  return "Poor";
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return "text-emerald-600";
-  if (score >= 60) return "text-amber-600";
-  if (score >= 40) return "text-orange-600";
-  return "text-red-600";
-}
-
-function getScoreSummary(score: number): string {
-  if (score >= 80) return " AI assistants are likely to recommend this brand. Focus on maintaining position.";
-  if (score >= 60) return " AI assistants may recommend this brand but often prefer competitors when signals are easier to retrieve.";
-  if (score >= 40) return " AI assistants sometimes mention this brand but rarely as the default answer. Improvements needed.";
-  return " AI assistants rarely recommend this brand. Significant improvements needed.";
-}
-
-function groupByCategory(breakdown: BreakdownItem[]): [string, BreakdownItem[]][] {
-  const groups: Record<string, BreakdownItem[]> = {};
-  for (const item of breakdown) {
-    const cat = item.category || "Other";
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(item);
-  }
-  return Object.entries(groups);
-}
-
-type ReadinessLevel = "strong" | "emerging" | "not-candidate";
-
-function getReadinessClassification(
-  analysis: AnalysisResult,
-  hasAnalysis: boolean,
-  status: AnalysisStatus
-): { level: ReadinessLevel; label: string; explanation: string } {
-  if (!hasAnalysis) {
-    return {
-      level: "not-candidate",
-      label: "Not a Default Candidate",
-      explanation:
-        "Analysis pending. AI confidence cannot be established until I can retrieve your homepage snapshot.",
-    };
-  }
-
-  if (status === "blocked") {
-    const statusCode = analysis.fetchDiagnostics?.status;
-    const blockedWhy = statusCode ? `HTTP ${statusCode}` : "fetch blocked";
-    return {
-      level: "not-candidate",
-      label: "Not a Default Candidate",
-      explanation: `I could not retrieve your homepage (${blockedWhy}). When content is not retrievable, AI systems avoid recommending it by default.`,
-    };
-  }
-
-  if (status === "snapshot_incomplete") {
-    return {
-      level: "not-candidate",
-      label: "Not a Default Candidate",
-      explanation:
-        "Analysis incomplete — the homepage content appears to require JavaScript or is too thin to evaluate reliably.",
-    };
-  }
-
-  if (status === "error" || analysis.score < 0) {
-    return {
-      level: "not-candidate",
-      label: "Not a Default Candidate",
-      explanation:
-        "AI lacks sufficient clarity and trust signals to recommend your brand as a default option. Analysis could not be completed reliably.",
-    };
-  }
-
-  const reasoning = analysis.reasoning || [];
-  const score = analysis.score;
-  const negativeCount = reasoning.filter((r) => r.impact === "negative").length;
-
-  if (score >= 75 && negativeCount <= 1) {
-    return {
-      level: "strong",
-      label: "Strong Default Candidate",
-      explanation: "Your site provides clear signals that allow AI to confidently identify, trust, and recommend your brand.",
-    };
-  }
-
-  if (score < 50) {
-    return {
-      level: "not-candidate",
-      label: "Not a Default Candidate",
-      explanation: "AI lacks sufficient clarity and trust signals to recommend your brand as a default option.",
-    };
-  }
-
-  return {
-    level: "emerging",
-    label: "Emerging Option",
-    explanation: "AI can understand your brand, but confidence gaps prevent it from consistently recommending you as the default.",
-  };
-}
-
-function beliefSupportingSignals(analysis: AnalysisResult): string[] {
-  const items = (analysis.breakdown || []).filter((b) => b.max > 0 && b.points === b.max && b.category !== "Error");
-  const mapped = items.map((b) => mapSupportSignal(b.label));
-  return uniq(mapped).slice(0, 3);
-}
-
 function beliefBlockingFactors(analysis: AnalysisResult, status: AnalysisStatus): string[] {
-  const out: string[] = [];
-  if (status === "blocked") {
-    out.push("Homepage fetch was blocked, so I cannot verify evidence directly.");
-  }
-  if (status === "snapshot_incomplete") {
-    out.push("Homepage snapshot was incomplete; likely requires JavaScript to expose core answers.");
-  }
-  for (const w of analysis.weaknesses || []) {
-    if (w) out.push(w);
-  }
-  // Add compact negative reasoning constraints if weaknesses are empty or too short
-  const neg = (analysis.reasoning || []).filter((r) => r.impact === "negative").map((r) => `${r.signal}: ${compactSentence(r.interpretation)}`);
-  for (const n of neg) out.push(n);
-  return uniq(out).slice(0, 3);
-}
-
-function beliefPrimaryUncertainty(analysis: AnalysisResult, status: AnalysisStatus): string {
-  if (status === "blocked") {
-    const statusCode = analysis.fetchDiagnostics?.status;
-    return `I cannot retrieve your homepage${statusCode ? ` (HTTP ${statusCode})` : ""}, so I cannot verify any signals.`;
-  }
-  if (status === "snapshot_incomplete") {
-    return "The HTML snapshot looks incomplete, so I would have to infer answers instead of retrieving them directly.";
-  }
-  if (analysis.score < 0) {
-    return "I cannot retrieve your content reliably enough to form a verifiable recommendation.";
-  }
-  const gap = biggestGapCategoryFromBreakdown(analysis.breakdown || []);
-  if (gap === "Answerability Signals") {
-    return "I have to infer answers instead of retrieving them directly from your site.";
-  }
-  if (gap === "Trust & Legitimacy") {
-    return "I cannot verify legitimacy signals as strongly as I can for competing sources.";
-  }
-  if (gap === "Entity Clarity") {
-    return "I cannot identify exactly what you are without making assumptions.";
-  }
-  if (gap === "Structural Comprehension") {
-    return "I cannot reliably compress your structure into retrievable sections and claims.";
-  }
-  if (gap === "Commercial Clarity") {
-    return "I cannot retrieve clear commercial terms, which limits confident recommendations.";
-  }
-  return "There is still uncertainty in what I can retrieve versus what I have to infer.";
-}
-
-function beliefSummaryText(args: {
-  brand: string;
-  readinessLabel: string;
-  confidenceScore: number;
-  supporting: string[];
-  primaryUncertainty: string;
-  status: AnalysisStatus;
-}): string {
-  if (args.status === "blocked") {
-    return "I can’t establish confidence yet because I couldn’t retrieve your homepage. AI systems avoid recommending sources they cannot fetch.";
-  }
-  if (args.status === "snapshot_incomplete") {
-    return "Analysis incomplete — the homepage content appears to require JavaScript or is too thin to evaluate reliably.";
-  }
-  const scorePart = args.confidenceScore >= 0 ? `${args.confidenceScore}/100` : "—";
-  const supportA = args.supporting[0] ? args.supporting[0] : "some signals are retrievable";
-  const supportB = args.supporting[1] ? args.supporting[1] : "key structure is present";
-  return `Based on what I can retrieve today, I consider you a ${args.readinessLabel}. My confidence is ${scorePart} because ${supportA} and ${supportB}, but ${args.primaryUncertainty}`;
-}
-
-function buildCompetitiveDeltaBullets(analysis: AnalysisResult, brand: string): CompetitiveDeltaBullet[] {
-  const status = getAnalysisStatus(analysis);
-  if (status !== "ok") return [];
-
-  const ex = analysis.extracted;
-  const breakdown = analysis.breakdown || [];
-  const brandName = brand || ex.brandGuess || ex.domain || "this brand";
-  const categoryLabel = pickCategoryLabel(ex);
-
-  const answerabilityWeak = !ex.hasFAQ && !ex.hasDirectAnswerBlock;
-  const schemaWeak = !ex.hasSchemaJsonLd;
-  const h1Weak =
-    !ex.h1s || ex.h1s.length === 0 || isBreakdownWeak(breakdown, "H1 describes product/category");
-  const structureWeak =
-    (ex.h2s || []).length < 3 ||
-    isBreakdownWeak(breakdown, "Multiple H2 headings") ||
-    isBreakdownWeak(breakdown, "Headings are descriptive");
-  const trustWeak = !ex.hasContactSignals || !ex.hasAbout;
-
-  const bullets: CompetitiveDeltaBullet[] = [];
-
-  if (answerabilityWeak) {
-    bullets.push({
-      query: `What is ${brandName}?`,
-      competitorAdvantage: "publish direct “What is X?” and “How does X work?” answers",
-      whyLose: "FAQ or direct answer blocks are not visible in the snapshot, so AI must infer basics.",
-    });
-  }
-
-  if (schemaWeak) {
-    bullets.push({
-      query: `Is ${brandName} a product or a service?`,
-      competitorAdvantage: "explicitly declare their entity type via Schema.org",
-      whyLose: "No Schema.org JSON-LD was detected in the HTML snapshot.",
-    });
-  }
-
-  if (h1Weak) {
-    bullets.push({
-      query: `Which ${categoryLabel} should I choose?`,
-      competitorAdvantage: "state their category in a single, literal sentence",
-      whyLose: "The title/H1 does not plainly state the category in one sentence.",
-    });
-  }
-
-  if (structureWeak) {
-    bullets.push({
-      query: `What does ${brandName} include?`,
-      competitorAdvantage: "break offerings into scannable feature/use-case sections",
-      whyLose: "Few descriptive H2 sections were detected, so structure is thin.",
-    });
-  }
-
-  if (trustWeak) {
-    bullets.push({
-      query: "Is this a real company I can contact?",
-      competitorAdvantage: "appear more verifiable as real businesses",
-      whyLose: "About/Contact signals are limited or missing in the snapshot.",
-    });
-  }
-
-  const limited = bullets.slice(0, 4);
-  return limited.length >= 2 ? limited : [];
-}
-
-function pickCategoryLabel(extracted: AnalysisResult["extracted"]): string {
-  if (extracted.h1s && extracted.h1s[0]) return extracted.h1s[0];
-  if (extracted.h2s && extracted.h2s[0]) return extracted.h2s[0];
-  if (extracted.brandGuess) return `${extracted.brandGuess} solution`;
-  return "solution";
-}
-
-function isBreakdownWeak(breakdown: BreakdownItem[], label: string): boolean {
-  const item = breakdown.find((b) => b.label === label);
-  if (!item) return false;
-  return item.points < item.max;
-}
-
-function generateConfidenceDebateBullets(
-  analysis: AnalysisResult,
-  brandName: string,
-  status: AnalysisStatus
-): string[] {
-  const ex = analysis.extracted;
   const bullets: string[] = [];
+  const ex = analysis.extracted;
+  const brandName = analysis.extracted.brandGuess || analysis.extracted.domain || "your site";
 
   if (status === "blocked") {
-    const statusCode = analysis.fetchDiagnostics?.status;
-    bullets.push(
-      `I could not retrieve ${brandName || "the homepage"}${
-        statusCode ? ` (HTTP ${statusCode})` : ""
-      }, so I cannot verify any signals to recommend you confidently.`
-    );
     return bullets;
   }
 
@@ -1358,22 +1363,6 @@ function mapFixToCategory(action: string): string {
   return "Other";
 }
 
-function biggestGapCategoryFromBreakdown(breakdown: BreakdownItem[]): string {
-  if (!breakdown || breakdown.length === 0) return "Other";
-  const by: Record<string, { points: number; max: number }> = {};
-  for (const item of breakdown) {
-    const cat = item.category || "Other";
-    if (cat === "Error") continue;
-    if (!by[cat]) by[cat] = { points: 0, max: 0 };
-    by[cat].points += item.points;
-    by[cat].max += item.max;
-  }
-  const entries = Object.entries(by).filter(([, v]) => v.max > 0);
-  if (entries.length === 0) return "Other";
-  entries.sort((a, b) => a[1].points / a[1].max - b[1].points / b[1].max);
-  return entries[0][0];
-}
-
 function weightGapWithNegativeReasoning(gap: string, reasoning: { impact: string; signal: string }[]): string {
   if (!gap) return "Other";
   const negSignals = new Set(
@@ -1401,40 +1390,8 @@ function mapReasoningSignalToCategory(signal: string): string {
   return "Other";
 }
 
-function mapSupportSignal(label: string): string {
-  const map: Record<string, string> = {
-    "Title includes brand/entity": "your title makes the entity explicit",
-    "Meta description present": "your page summary is explicit",
-    "H1 describes product/category": "your primary heading defines what you are",
-    "H1 heading present": "a primary heading is present",
-    "Multiple H2 headings": "your section structure is retrievable",
-    "Headings are descriptive": "your headings are descriptive",
-    "FAQ section present": "direct Q&A is retrievable",
-    "Schema.org markup": "structured entity data is retrievable",
-    "About page linked": "legitimacy context is retrievable",
-    "Contact info present": "contact legitimacy is retrievable",
-    "Pricing/plans visible": "commercial terms are retrievable",
-  };
-  return map[label] || label;
-}
-
-function compactSentence(text: string): string {
-  const t = (text || "").trim();
-  if (!t) return "";
-  return t.length > 180 ? `${t.slice(0, 177)}...` : t;
-}
-
-function uniq(arr: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const v of arr) {
-    const key = (v || "").trim();
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(key);
-  }
-  return out;
+function getScoreLabel(_score: number): string {
+  return "Default Answer Score";
 }
 
 // ===== Components =====
@@ -1665,7 +1622,7 @@ function OneChangeThatIncreasesConfidence(props: {
   const remains = whatRemainsIfNotFixed(category, props.brandName);
 
   return (
-    <div className="border border-stone-200 dark:border-stone-800 rounded-lg p-5 bg-white dark:bg-stone-900">
+    <Card>
       <p className="font-semibold text-stone-900 dark:text-stone-100">
         {fix.action}
       </p>
@@ -1702,7 +1659,7 @@ function OneChangeThatIncreasesConfidence(props: {
           </ol>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -1740,17 +1697,17 @@ function whatRemainsIfNotFixed(category: string, brandName: string): string {
   }
 }
 
-function NoCriticalFixesDetected() {
+function NoCriticalFixesDetected({ note }: { note?: string }) {
   return (
-    <div className="mt-6 border border-stone-200 dark:border-stone-800 rounded-lg p-5 bg-stone-50 dark:bg-stone-900">
+    <Card>
       <h3 className="text-lg font-semibold text-stone-800 dark:text-stone-200 mb-2">
         No Critical Fixes Detected
       </h3>
       <p className="text-sm text-stone-700 dark:text-stone-300">
-        Your site already provides strong default-answer signals. Remaining improvements are marginal and
-        unlikely to materially change AI recommendations.
+        {note ||
+          "Your site already provides strong default-answer signals. Remaining improvements are marginal and unlikely to materially change AI recommendations."}
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -1769,23 +1726,23 @@ function PromptCategory({
       <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">{description}</p>
       <div className="space-y-3">
         {prompts.map((prompt) => (
-          <div key={prompt.id} className="border border-stone-200 dark:border-stone-700 rounded overflow-hidden">
-            <div className="bg-stone-100 dark:bg-stone-800 px-4 py-3">
+          <Card key={prompt.id}>
+            <div className="space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <code className="text-sm text-stone-800 dark:text-stone-200 break-words">
                   {prompt.template}
                 </code>
                 <CopyButton text={prompt.template} />
               </div>
-              <p className="text-xs text-stone-500 mt-1">{prompt.description}</p>
+              <p className="text-xs text-stone-500">{prompt.description}</p>
+              <div className="border-t border-stone-200 dark:border-stone-800 pt-3">
+                <p className="text-xs text-stone-400 uppercase tracking-wide mb-1">LLM Output</p>
+                <p className="text-sm text-stone-500 dark:text-stone-400 italic">
+                  [Copy prompt above and paste into ChatGPT/Claude to see results]
+                </p>
+              </div>
             </div>
-            <div className="bg-stone-50 dark:bg-stone-900 px-4 py-3 border-t border-stone-200 dark:border-stone-700">
-              <p className="text-xs text-stone-400 uppercase tracking-wide mb-1">LLM Output</p>
-              <p className="text-sm text-stone-500 dark:text-stone-400 italic">
-                [Copy prompt above and paste into ChatGPT/Claude to see results]
-              </p>
-            </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

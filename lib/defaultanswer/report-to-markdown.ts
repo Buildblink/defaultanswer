@@ -9,6 +9,15 @@ import { PROMPT_PACK_VERSION } from "./prompt-pack";
 import { DEFAULTANSWER_VERSION } from "./version";
 import type { FetchDiagnostics, SnapshotQuality } from "./scoring";
 import type { SimulationResult } from "./simulation";
+import type {
+  ColdSummaryExistingSignals,
+  ColdSummaryMode,
+  ColdSummaryMultiRun,
+  ColdSummaryResult,
+} from "./cold-summary";
+import { buildColdFixPlaybook, pickRepresentativeRun } from "./cold-summary";
+import { computeScanDelta } from "@/lib/report/deltas";
+import type { ReportV2, ReportV2Options } from "@/lib/report/report-v2";
 
 export type LiveRecommendationCheck = {
   id: string;
@@ -55,11 +64,47 @@ export type ReportData = {
   };
   simulation?: SimulationResult;
   liveChecks?: LiveRecommendationCheck[];
+  coldSummary?: ColdSummaryResult;
+  coldSummaryMulti?: ColdSummaryMultiRun;
+  coldSummaryByMode?: ColdSummaryByMode;
+  existingSignals?: ColdSummaryExistingSignals;
   competitiveDelta?: Array<{
     query: string;
     competitorAdvantage: string;
     whyLose: string;
   }>;
+  reportV2?: ReportV2;
+  proHistory?: {
+    isPro: boolean;
+    access: boolean;
+    message?: string;
+    current?: {
+      score: number;
+      readiness: string;
+      coverage_overall: number;
+      has_faq: boolean;
+      has_schema: boolean;
+      has_pricing: boolean;
+    };
+    previous?: {
+      score: number;
+      readiness: string;
+      coverage_overall: number;
+      has_faq: boolean;
+      has_schema: boolean;
+      has_pricing: boolean;
+    } | null;
+    recent?: Array<{
+      id?: string;
+      created_at?: string;
+      score: number;
+      readiness: string;
+      coverage_overall: number;
+      has_faq: boolean;
+      has_schema: boolean;
+      has_pricing: boolean;
+    }>;
+  };
   historyDiff?: {
     scoreDelta: number;
     readinessChanged: boolean;
@@ -93,8 +138,23 @@ export type ReportData = {
   };
 };
 
+export type ColdSummaryModeStore = {
+  singleRun?: ColdSummaryResult;
+  multiRun?: ColdSummaryMultiRun;
+};
+
+export type ColdSummaryByMode = Partial<Record<ColdSummaryMode, ColdSummaryModeStore>>;
+
 export function reportToMarkdown(report: ReportData): string {
   const lines: string[] = [];
+  const reportV2Defaults: Required<ReportV2Options> = {
+    maxBullets: 6,
+    promptCountPerBucket: 3,
+    includeSimulatedAiProof: true,
+    includeCitationReadiness: true,
+    includeImplementationExamples: true,
+    includeQuoteReady: true,
+  };
 
   // Header
   lines.push("# DefaultAnswer Report");
@@ -111,6 +171,29 @@ export function reportToMarkdown(report: ReportData): string {
   }
   lines.push("");
 
+  // History (Pro)
+  if (report.proHistory) {
+    if (!report.proHistory.isPro) {
+      lines.push("## Monitoring (Pro)");
+      lines.push("Monitoring is locked. Unlock monitoring to save scan history.");
+      lines.push("");
+    } else {
+      lines.push("## History (Pro)");
+      if (report.proHistory.previous && report.proHistory.current) {
+        const delta = computeScanDelta(report.proHistory.current, report.proHistory.previous);
+        lines.push("### Since last scan");
+        lines.push(`Score: ${delta.scoreDelta >= 0 ? "+" : ""}${delta.scoreDelta}`);
+        lines.push(`Coverage: ${delta.coverageDelta >= 0 ? "+" : ""}${delta.coverageDelta}`);
+        lines.push(
+          `Changes: ${delta.chips.length ? delta.chips.map((c) => c.label).join(", ") : "none detected"}`
+        );
+      } else {
+        lines.push(`- ${report.proHistory.message || "First scan saved."}`);
+      }
+      lines.push("");
+    }
+  }
+
   // What to Fix First (if available)
   if (report.topFix) {
     lines.push("## The one change that would most increase my confidence");
@@ -121,6 +204,177 @@ export function reportToMarkdown(report: ReportData): string {
     report.topFix.steps.forEach((step, idx) => {
       lines.push(`  ${idx + 1}. ${step}`);
     });
+    lines.push("");
+  }
+
+  // Report V2 sections (after Fix this first, before Evidence/Diagnostics)
+  if (report.reportV2) {
+    const v2 = applyReportV2Options(report.reportV2, reportV2Defaults);
+
+    // Right now
+    lines.push("## Right now");
+    lines.push("**You would be recommended for:**");
+    if (v2.rightNow.recommended.length > 0) {
+      v2.rightNow.recommended.forEach((prompt) => lines.push(`- ${prompt}`));
+    } else {
+      lines.push("- No prompts confidently recommend you yet.");
+    }
+    lines.push("**You would be skipped for:**");
+    if (v2.rightNow.skipped.length > 0) {
+      v2.rightNow.skipped.forEach((prompt) => lines.push(`- ${prompt}`));
+    } else {
+      lines.push("- No prompts confidently skip you yet.");
+    }
+    lines.push("**Why this happens:**");
+    lines.push(v2.rightNow.reason);
+    lines.push("");
+
+    const modeStore = report.coldSummaryByMode;
+    if (modeStore) {
+      appendColdSummarySection(lines, "Cold AI (URL-only)", "url_only", modeStore.url_only, report.existingSignals);
+      appendColdSummarySection(lines, "Cold AI (Snapshot)", "snapshot", modeStore.snapshot, report.existingSignals);
+    } else if (report.coldSummaryMulti || report.coldSummary) {
+      appendColdSummarySection(lines, "Cold AI (URL-only)", "url_only", {
+        singleRun: report.coldSummary,
+        multiRun: report.coldSummaryMulti,
+      }, report.existingSignals);
+    }
+
+    // Share-ready summary
+    lines.push("## Share-ready summary");
+    lines.push(v2.sharePack.execSummary);
+    lines.push("");
+    lines.push(v2.sharePack.quotePack);
+    lines.push("");
+    lines.push(v2.sharePack.fixChecklist);
+    lines.push("");
+
+    // 1) What AI recommends instead of you (Simulated)
+    if (v2.aiProof.length > 0) {
+      lines.push("## What AI recommends instead of you (Simulated)");
+      lines.push(
+        "Simulated examples to illustrate observable behavior. For real model outputs, enable Live Proof in settings."
+      );
+      lines.push(
+        "Model-free verdicts below approximate citation readiness without model calls."
+      );
+      lines.push("Live Proof: run in-app (not included in exported markdown).");
+      v2.aiProof.forEach((proof) => {
+        lines.push(`- **Model:** ${proof.modelLabel}`);
+        lines.push(
+          `  **Prompt:** ${proof.prompt} (${proof.verdict}, ${proof.confidence}% confidence)`
+        );
+        lines.push(`  **Simulated response:** ${proof.response}`);
+        if (proof.recommended.length > 0) {
+          lines.push(`  **Recommended archetypes:** ${proof.recommended.join("; ")}`);
+        }
+        if (proof.skipReason) {
+          lines.push(`  **Mention:** Not mentioned (${proof.skipReason})`);
+        } else {
+          lines.push("  **Mention:** Mentioned as a viable option");
+        }
+        lines.push(`  **So what:** ${proof.soWhat}`);
+        lines.push(`  **Primary blocker:** ${proof.primaryBlocker}`);
+      });
+      lines.push("");
+    }
+
+    // 2) How AI reasoned through this decision
+    if (v2.reasoning.steps.length > 0) {
+      lines.push("## How AI reasoned through this decision");
+      lines.push("**Reasoning steps:**");
+      v2.reasoning.steps.forEach((step, idx) => {
+        lines.push(`  ${idx + 1}. ${step}`);
+      });
+      lines.push("**Confidence breaks down because:**");
+      v2.reasoning.confidenceBreakdown.forEach((item) => lines.push(`- ${item}`));
+      lines.push("");
+    }
+
+    // 3) Retrieve vs infer
+    lines.push("## What AI can retrieve vs what it has to guess");
+    lines.push(v2.retrieveVsInfer.explanation);
+    if (v2.retrieveVsInfer.retrievable.length > 0) {
+      lines.push("**Retrievable:**");
+      v2.retrieveVsInfer.retrievable.forEach((item) => lines.push(`- ${item}`));
+    }
+    if (v2.retrieveVsInfer.inferred.length > 0) {
+      lines.push("**Inferred:**");
+      v2.retrieveVsInfer.inferred.forEach((item) => lines.push(`- ${item}`));
+    }
+    lines.push("");
+
+    // 4) Evidence coverage
+    lines.push("## Evidence coverage (how much AI can actually use)");
+    lines.push(`- **Overall coverage:** ${v2.coverage.overall}/100`);
+    lines.push(`- **Structure coverage:** ${v2.coverage.structure}/100`);
+    lines.push(`- **Answer coverage:** ${v2.coverage.answer}/100`);
+    lines.push(`- **Entity coverage:** ${v2.coverage.entity}/100`);
+    lines.push(`- **Commercial coverage:** ${v2.coverage.commercial}/100`);
+    lines.push(`- **Next move:** ${v2.coverage.nextMove}`);
+    lines.push("");
+
+    // 5) Competitive positioning snapshot
+    lines.push("## Competitive positioning snapshot");
+    v2.competitiveSnapshot.rows.forEach((row) => {
+      lines.push(
+        `- **${row.label}:** Answer clarity ${row.answerClarity}, Commercial clarity ${row.commercialClarity}, Justification ease ${row.justificationEase}. ${row.note}`
+      );
+    });
+    lines.push("");
+
+    // 6) Prompt radar
+    lines.push("## Questions you can win, and where you're blocked");
+    lines.push("**Winnable now:**");
+    v2.promptRadar.winnableNow.forEach((item) => {
+      lines.push(`- ${item.prompt} — ${item.reason}`);
+    });
+    lines.push("**One fix away:**");
+    v2.promptRadar.oneFixAway.forEach((item) => {
+      lines.push(`- ${item.prompt} — ${item.reason}`);
+    });
+    lines.push("**Blocked:**");
+    v2.promptRadar.blocked.forEach((item) => {
+      lines.push(`- ${item.prompt} — ${item.reason}`);
+    });
+    lines.push("");
+
+    // 7) Implementation examples
+    lines.push('## What "good" looks like (copy/paste examples)');
+    lines.push("**FAQ examples:**");
+    v2.implementationExamples.faqs.forEach((faq) => {
+      lines.push(`- Q: ${faq.q}`);
+      lines.push(`  A: ${faq.a}`);
+    });
+    lines.push("**Schema snippet:**");
+    lines.push("```json");
+    lines.push(JSON.stringify(v2.implementationExamples.schemaSnippetJson, null, 2));
+    lines.push("```");
+    lines.push("**Pricing clarity:**");
+    lines.push(`- Before: ${v2.implementationExamples.pricingClarity.before}`);
+    lines.push(`- After: ${v2.implementationExamples.pricingClarity.after}`);
+    lines.push("");
+
+    // 8) Quote-ready copy
+    if (v2.quoteReady.length > 0) {
+      lines.push("## Quote-ready copy you can paste today");
+      v2.quoteReady.forEach((item) => {
+        lines.push(`- **${item.label}**`);
+        lines.push(`  **Copy:** ${item.copy}`);
+        lines.push(`  **Placement:** ${item.placement}`);
+        lines.push(`  **Why:** ${item.why}`);
+      });
+      lines.push("");
+    }
+
+    // 9) Citation readiness
+    lines.push("## Citation readiness");
+    lines.push("**Citable sentences:**");
+    v2.citationReadiness.citableSentences.forEach((sentence) => {
+      lines.push(`- ${sentence}`);
+    });
+    lines.push("**Why these are citable:**");
+    v2.citationReadiness.whyCitable.forEach((item) => lines.push(`- ${item}`));
     lines.push("");
   }
 
@@ -353,6 +607,128 @@ export function reportToMarkdown(report: ReportData): string {
   );
 
   return lines.join("\n");
+}
+
+function appendColdSummarySection(
+  lines: string[],
+  title: string,
+  mode: ColdSummaryMode,
+  data?: ColdSummaryModeStore,
+  existingSignals?: ColdSummaryExistingSignals
+) {
+  if (!data || (!data.singleRun && !data.multiRun)) return;
+  const multi = data.multiRun;
+  const single = data.singleRun;
+  const useMulti = multi
+    ? !single || new Date(multi.createdAt).getTime() >= new Date(single.createdAt).getTime()
+    : false;
+  const representative = useMulti && multi ? pickRepresentativeRun(multi.results, multi.aggregate) : null;
+  const output = representative?.rawText || single?.rawOutput || single?.response || "";
+  const analysis = representative?.analysis || single?.analysis;
+  const verdictLabel = analysis?.verdictLabel || "Unclear";
+  const clarityScore = typeof analysis?.clarityScore === "number" ? analysis?.clarityScore : 1;
+
+  lines.push(`## ${title}`);
+  if (useMulti && multi) {
+    lines.push(`- **Prompt version:** ${multi.promptVersion}`);
+    lines.push(`- **Model:** ${multi.model}`);
+    lines.push(`- **Consistency:** ${multi.aggregate.consistencyLabel}`);
+    lines.push(
+      `- **Verdict distribution:** clear=${multi.aggregate.verdictCounts.clear}, partial=${multi.aggregate.verdictCounts.partial}, unclear=${multi.aggregate.verdictCounts.unclear}, refusal=${multi.aggregate.verdictCounts.refusal}`
+    );
+    lines.push(`- **Refusals:** ${multi.aggregate.refusalsCount}`);
+    lines.push(`- **Clarity avg:** ${multi.aggregate.clarityAvg}/5`);
+    lines.push(`- **Unknown avg:** ${multi.aggregate.unknownAvg}`);
+  } else if (single) {
+    lines.push(`- **Prompt version:** ${single.promptVersion}`);
+    lines.push(`- **Model:** ${single.model}`);
+  }
+
+  lines.push(`- **Verdict:** ${verdictLabel}`);
+  lines.push(`- **Clarity score:** ${clarityScore}/5`);
+  if (analysis?.failureMode === "refusal") {
+    lines.push("- **Failure mode:** refusal / no retrieval");
+  } else if (analysis?.failureMode === "no_retrieval_url_only") {
+    lines.push("- **Failure mode:** no retrieval (URL-only)");
+  }
+  lines.push("- **Signals:**");
+  lines.push(`  - Explicit category: ${analysis?.hasCategory ? "detected" : "missing"}`);
+  lines.push(`  - Audience clarity: ${analysis?.hasAudience ? "detected" : "missing"}`);
+  lines.push(`  - Offering detected: ${analysis?.hasOffering ? "detected" : "missing"}`);
+  lines.push(`  - Hedging language: ${analysis?.hasHedging ? "detected" : "missing"}`);
+  lines.push("");
+  lines.push(
+    "Why this matters: AI assistants prefer sources they can confidently summarize in one pass. If a model cannot infer your category and offering cold, it is unlikely to recommend or cite you."
+  );
+  lines.push("");
+  if (analysis) {
+    const playbook = buildColdFixPlaybook(analysis, { mode, existingSignals });
+    const recommended = playbook.filter((item) => item.status === "recommend");
+    const alreadyPresent = playbook.filter((item) => item.status === "already_present");
+    if (recommended.length > 0) {
+      lines.push("**Cold Playbook (Recommended)**");
+      recommended.forEach((item) => {
+        lines.push(`- ${item.title}: ${item.example}`);
+      });
+      lines.push("");
+    }
+    if (alreadyPresent.length > 0) {
+      lines.push("**Already present**");
+      alreadyPresent.forEach((item) => lines.push(`- ${item.title}`));
+      lines.push("");
+    }
+  }
+  lines.push("**Verbatim response:**");
+  lines.push("```");
+  lines.push(output);
+  lines.push("```");
+  lines.push("");
+}
+
+function applyReportV2Options(
+  report: ReportV2,
+  options: Required<ReportV2Options>
+): ReportV2 {
+  const aiProof = options.includeSimulatedAiProof ? report.aiProof : [];
+  const implementationExamples = options.includeImplementationExamples
+    ? report.implementationExamples
+    : { faqs: [], schemaSnippetJson: {}, pricingClarity: { before: "", after: "" } };
+  const quoteReady = options.includeQuoteReady ? report.quoteReady : [];
+  const citationReadiness = options.includeCitationReadiness
+    ? report.citationReadiness
+    : { citableSentences: [], whyCitable: [] };
+
+  return {
+    ...report,
+    aiProof,
+    reasoning: {
+      steps: report.reasoning.steps.slice(0, 5),
+      confidenceBreakdown: report.reasoning.confidenceBreakdown.slice(0, 2),
+    },
+    retrieveVsInfer: {
+      ...report.retrieveVsInfer,
+      retrievable: report.retrieveVsInfer.retrievable.slice(0, options.maxBullets),
+      inferred: report.retrieveVsInfer.inferred.slice(0, options.maxBullets),
+    },
+    promptRadar: {
+      winnableNow: report.promptRadar.winnableNow.slice(0, options.promptCountPerBucket),
+      oneFixAway: report.promptRadar.oneFixAway.slice(0, options.promptCountPerBucket),
+      blocked: report.promptRadar.blocked.slice(0, options.promptCountPerBucket),
+    },
+    implementationExamples,
+    quoteReady,
+    coverage: report.coverage,
+    rightNow: {
+      recommended: report.rightNow.recommended.slice(0, 2),
+      skipped: report.rightNow.skipped.slice(0, 2),
+      reason: report.rightNow.reason,
+    },
+    sharePack: report.sharePack,
+    citationReadiness: {
+      citableSentences: citationReadiness.citableSentences.slice(0, 2),
+      whyCitable: citationReadiness.whyCitable.slice(0, 3),
+    },
+  };
 }
 
 function groupBreakdownByCategory(
