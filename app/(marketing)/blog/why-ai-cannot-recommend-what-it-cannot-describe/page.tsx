@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Script from "next/script";
 import { blogPosts } from "../posts";
+import { BlogPostLayout } from "@/components/blog";
 
 const post = blogPosts.find(
   (item) => item.slug === "why-ai-cannot-recommend-what-it-cannot-describe"
@@ -27,125 +27,66 @@ export const metadata = {
 };
 
 export default function BlogPostPage() {
-  const published = post?.date ?? "";
-  const updated = post?.updatedAt ?? published;
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post?.title,
-    description: post?.description,
-    datePublished: published,
-    dateModified: updated,
-    author: {
-      "@type": "Organization",
-      name: "DefaultAnswer",
-    },
-    publisher: {
-      "@type": "Organization",
-      name: "DefaultAnswer",
-      logo: {
-        "@type": "ImageObject",
-        url: `${siteUrl}/icon.png`,
-      },
-    },
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": canonicalUrl,
-    },
-    url: canonicalUrl,
-    image: `${siteUrl}/og.png`,
-    inLanguage: "en",
-    isPartOf: {
-      "@type": "WebSite",
-      name: "DefaultAnswer",
-      url: siteUrl,
-    },
-  };
+  if (!post) return null;
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
-      <Script
-        id="ld-blogposting-cannot-describe"
-        type="application/ld+json"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-
-      <article className="mx-auto max-w-3xl px-4 py-12">
-        <div className="text-sm text-stone-600 dark:text-stone-300">
-          <Link href="/blog" className="hover:underline">
-            Blog
+    <BlogPostLayout
+      slug={post.slug}
+      title={post.title}
+      description={post.description}
+      date={post.date}
+      updatedAt={post.updatedAt}
+      intro={
+        <p>
+          This article focuses on observable AI behavior, not proprietary model internals or
+          speculative ranking factors. It follows the{" "}
+          <Link
+            href="/methodology"
+            className="underline hover:text-stone-900 dark:hover:text-stone-50"
+          >
+            methodology
           </Link>
-          <span className="mx-2">/</span>
-          <span>AI recommendations</span>
-        </div>
-
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Why AI cannot recommend what it cannot describe
-        </h1>
-
-        <div className="mx-auto mt-5 max-w-3xl space-y-6">
-          <p className="text-base leading-relaxed text-stone-700 dark:text-stone-300">
-            This article focuses on observable AI behavior, not proprietary model internals or speculative ranking
-            factors. It follows the{" "}
-            <Link href="/methodology" className="underline hover:text-stone-900 dark:hover:text-stone-50">
-              methodology
-            </Link>
-            . It explains why many websites are skipped by AI assistants even when their content quality is high.
+          . It explains why many websites are skipped by AI assistants even when their content
+          quality is high.
+        </p>
+      }
+      coreClaim="AI assistants cannot recommend a website unless they can describe it clearly, directly, and without interpretation."
+      keyIdea={
+        <>
+          Search engines retrieve documents. AI assistants generate answers. If a website cannot be
+          summarized, categorized, and justified using visible on-page text, an AI system will
+          avoid using it as a source, even if it ranks well or appears authoritative.
+        </>
+      }
+      tldr={[
+        "AI systems prefer sources they can describe in one or two sentences.",
+        "Ambiguous positioning forces interpretation, which increases risk.",
+        "Sites are skipped when definitions are implied instead of stated.",
+        "Being well written is not the same as being describable.",
+        "Recommendation-ready sites make categorization explicit.",
+      ]}
+      jumpNavItems={[
+        { href: "#clear-description-vs-implied-meaning", label: "Clear description vs implied meaning" },
+        { href: "#how-ai-forms-a-description", label: "How AI forms a description" },
+        { href: "#common-description-failures", label: "Common description failures" },
+        { href: "#recommendation-ready-definition", label: "Recommendation-ready definition" },
+        { href: "#what-to-fix-first", label: "What to fix first" },
+      ]}
+      closingNote={
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+            Closing note
+          </div>
+          <p className="leading-relaxed">
+            AI assistants do not avoid websites because they are bad. They avoid websites because
+            they are hard to describe safely.
           </p>
-
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-950">
-            <div className="text-xs font-medium uppercase tracking-wider text-stone-500">Core claim</div>
-            <p className="mt-2 text-base font-semibold leading-relaxed text-stone-900 dark:text-stone-50">
-              AI assistants cannot recommend a website unless they can describe it clearly, directly, and without
-              interpretation.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-950">
-            <div className="text-xs font-medium uppercase tracking-wider text-stone-500">Key idea</div>
-            <p className="mt-2 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
-              Search engines retrieve documents. AI assistants generate answers. If a website cannot be summarized,
-              categorized, and justified using visible on-page text, an AI system will avoid using it as a source, even
-              if it ranks well or appears authoritative.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-950">
-            <h2 className="text-sm font-semibold tracking-tight text-stone-900 dark:text-stone-50">TL;DR</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
-              <li>AI systems prefer sources they can describe in one or two sentences.</li>
-              <li>Ambiguous positioning forces interpretation, which increases risk.</li>
-              <li>Sites are skipped when definitions are implied instead of stated.</li>
-              <li>Being well written is not the same as being describable.</li>
-              <li>Recommendation-ready sites make categorization explicit.</li>
-            </ul>
-          </div>
-
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-stone-500">Jump to</div>
-            <ul className="mt-3 grid gap-2 text-sm text-stone-600 dark:text-stone-300 sm:grid-cols-2">
-              {[
-                ["#clear-description-vs-implied-meaning", "Clear description vs implied meaning"],
-                ["#how-ai-forms-a-description", "How AI forms a description"],
-                ["#common-description-failures", "Common description failures"],
-                ["#recommendation-ready-definition", "Recommendation-ready definition"],
-                ["#what-to-fix-first", "What to fix first"],
-              ].map(([href, label]) => (
-                <li key={href}>
-                  <a
-                    href={href}
-                    className="block rounded-xl border border-stone-200 px-3 py-2 text-stone-700 transition hover:bg-stone-50 dark:border-stone-800 dark:text-stone-300 dark:hover:bg-stone-900"
-                  >
-                    {label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <p className="leading-relaxed">
+            If a site cannot be summarized without interpretation, it will not be recommended.
+          </p>
         </div>
-
-        <div className="mx-auto mt-10 max-w-3xl space-y-12 text-stone-700 dark:text-stone-300">
+      }
+    >
           <div className="border-t border-stone-200 pt-8 dark:border-stone-800">
             <section id="clear-description-vs-implied-meaning" className="space-y-4">
               <h2 className="scroll-mt-24 text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
@@ -334,38 +275,6 @@ export default function BlogPostPage() {
             </section>
           </div>
 
-          {/* CTA that matches site style */}
-          <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-950">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-50">Want the diagnosis for your site?</h3>
-                <p className="mt-1 text-sm leading-relaxed text-stone-700 dark:text-stone-300">
-                  Run an analysis to see which missing signals create hesitation and what to fix first.
-                </p>
-              </div>
-              <Link
-                href="/defaultanswer"
-                className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-900 shadow-sm hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
-              >
-                Analyze
-              </Link>
-            </div>
-          </div>
-
-          <div className="border-t border-stone-200 pt-8 dark:border-stone-800">
-            <div className="space-y-3">
-              <div className="text-xs font-medium uppercase tracking-wider text-stone-500">Closing note</div>
-              <p className="leading-relaxed">
-                AI assistants do not avoid websites because they are bad. They avoid websites because they are hard to
-                describe safely.
-              </p>
-              <p className="leading-relaxed">
-                If a site cannot be summarized without interpretation, it will not be recommended.
-              </p>
-            </div>
-          </div>
-        </div>
-      </article>
-    </div>
+    </BlogPostLayout>
   );
 }
