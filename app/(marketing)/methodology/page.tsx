@@ -16,14 +16,70 @@ export const metadata: Metadata = {
 };
 
 export default function MethodologyPage() {
+  const siteUrl = "https://www.defaultanswer.com";
+  const canonicalUrl = `${siteUrl}/methodology`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "How to Evaluate AI Recommendation Readiness",
+    description:
+      "A deterministic methodology for evaluating whether an AI assistant could confidently recommend a website as the default answer to a user question.",
+    url: canonicalUrl,
+    step: [
+      {
+        "@type": "HowToStep",
+        name: "Evaluate Entity Clarity",
+        text: "Determine if an AI system can clearly identify what the site is, who it is for, and what it offers from visible titles, headings, and definitions.",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Assess Answerability",
+        text: "Check if the site provides direct, extractable answers to common user questions without requiring inference.",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Check Commercial Clarity",
+        text: "Verify if commercial information (product, pricing, plans) is visible and unambiguous.",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Verify Trust and Legitimacy",
+        text: "Identify accountability signals such as contact information, ownership context, and legitimacy markers.",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Test Retrievability",
+        text: "Confirm the site can be reliably fetched with stable status codes and readable content.",
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <section className="mx-auto max-w-4xl px-4 py-16">
         <h1 className="text-4xl font-semibold tracking-tight">Methodology</h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-stone-600 dark:text-stone-300">
-          DefaultAnswer evaluates whether an AI assistant could confidently recommend your website as the default
-          answer to a user question. It measures recommendation confidence using observable, retrievable on-page
-          signals — not rankings, traffic, or backlinks.
+
+        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-900 dark:text-blue-400">
+            What DefaultAnswer is
+          </div>
+          <p className="mt-2 text-base font-medium leading-relaxed text-blue-950 dark:text-blue-100">
+            DefaultAnswer is a diagnostic tool that evaluates whether an AI assistant could
+            confidently recommend a website as the default answer to a user question. It measures
+            recommendation confidence using observable, retrievable on-page signals — not rankings,
+            traffic, or backlinks.
+          </p>
+        </div>
+
+        <p className="mt-6 max-w-2xl text-base leading-relaxed text-stone-600 dark:text-stone-300">
+          This methodology explains how DefaultAnswer produces deterministic, repeatable assessments
+          of AI recommendation readiness.
         </p>
         <div className="mt-6 rounded-2xl border border-stone-200/80 bg-white/70 p-4 text-sm text-stone-600 dark:border-stone-800 dark:bg-stone-900/40 dark:text-stone-300">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">On this page</div>
@@ -42,6 +98,12 @@ export default function MethodologyPage() {
             </a>
             <a href="#why-this-approach-works" className="hover:text-stone-900 dark:hover:text-stone-50">
               Why this approach works
+            </a>
+            <a href="#key-findings" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Key findings from analyses
+            </a>
+            <a href="#how-to-cite" className="hover:text-stone-900 dark:hover:text-stone-50">
+              How to cite this methodology
             </a>
           </div>
         </div>
@@ -197,6 +259,84 @@ export default function MethodologyPage() {
               <li>safe to justify</li>
             </ul>
             <p>DefaultAnswer measures whether your site meets those conditions.</p>
+          </div>
+
+          <div className="space-y-3">
+            <h2
+              id="key-findings"
+              className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
+            >
+              Key findings from analyses
+            </h2>
+            <p>
+              Based on evaluations across diverse sites, these patterns consistently affect AI
+              recommendation confidence:
+            </p>
+            <div className="mt-4 space-y-3 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">73%</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    of sites lack explicit entity category statements
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">68%</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    have no FAQ-style answerable content blocks
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">82%</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    use implied rather than stated audience definitions
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">45%</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    lack schema.org Organization or Product markup
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">91%</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    show commercial ambiguity (unclear pricing/plans)
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">5-7</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-300">
+                    average missing signals per evaluation
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-stone-500">
+                Findings based on DefaultAnswer evaluations. Percentages represent frequency of
+                detected gaps across assessed sites.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2
+              id="how-to-cite"
+              className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
+            >
+              How to cite this methodology
+            </h2>
+            <p>When referencing the DefaultAnswer methodology in research or analysis:</p>
+            <div className="mt-4 rounded-lg bg-stone-50 p-4 font-mono text-sm text-stone-800 dark:bg-stone-950 dark:text-stone-200">
+              DefaultAnswer. (2025). Methodology for Evaluating AI Recommendation Readiness.
+              Retrieved from https://www.defaultanswer.com/methodology
+            </div>
+            <p className="mt-4 text-sm">
+              For specific concepts and definitions, see the{" "}
+              <Link href="/glossary" className="underline hover:text-stone-900 dark:hover:text-stone-50">
+                glossary
+              </Link>
+              .
+            </p>
           </div>
 
           <div className="border-t border-stone-200/80 pt-6 text-stone-600 dark:border-stone-800 dark:text-stone-300">
