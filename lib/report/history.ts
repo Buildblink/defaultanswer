@@ -1,3 +1,24 @@
+/**
+ * Report Storage - requires Supabase table: stored_reports
+ *
+ * SQL to create table:
+ *
+ * CREATE TABLE IF NOT EXISTS stored_reports (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   domain TEXT NOT NULL,
+ *   report_id TEXT NOT NULL,
+ *   user_id TEXT,
+ *   url TEXT NOT NULL,
+ *   analysis_data JSONB NOT NULL,
+ *   created_at TIMESTAMPTZ DEFAULT NOW(),
+ *   updated_at TIMESTAMPTZ DEFAULT NOW(),
+ *   UNIQUE(domain, user_id)
+ * );
+ *
+ * CREATE INDEX idx_stored_reports_domain ON stored_reports(domain);
+ * CREATE INDEX idx_stored_reports_user_id ON stored_reports(user_id);
+ */
+
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export type ReportScanSummary = {
@@ -13,6 +34,17 @@ export type ReportScanSummary = {
   has_schema: boolean;
   has_pricing: boolean;
   primary_blocker: string;
+};
+
+export type StoredReport = {
+  id?: string;
+  domain: string; // normalized domain (e.g., "otterly.ai")
+  report_id: string;
+  user_id: string | null;
+  created_at?: string;
+  updated_at?: string;
+  analysis_data: any; // AnalysisResult JSON
+  url: string; // original URL analyzed
 };
 
 
@@ -124,5 +156,95 @@ export async function fetchRecentScans(
   } catch (err) {
     console.warn("[report history] fetch recent failed", err);
     return [];
+  }
+}
+
+/**
+ * Extract domain from URL for clean report URLs
+ * e.g., "https://www.otterly.ai/pricing" -> "otterly.ai"
+ */
+export function extractDomain(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return url
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split("/")[0]
+      .toLowerCase();
+  }
+}
+
+/**
+ * Save full report data for clean URL access
+ */
+export async function saveReport(params: {
+  domain: string;
+  reportId: string;
+  userId: string | null;
+  analysisData: any;
+  url: string;
+}): Promise<StoredReport | null> {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const record = {
+    domain: params.domain,
+    report_id: params.reportId,
+    user_id: params.userId,
+    analysis_data: params.analysisData,
+    url: params.url,
+  };
+
+  try {
+    // Upsert: update if domain exists for this user, insert otherwise
+    const { data, error } = await supabaseAdmin
+      .from("stored_reports")
+      .upsert(record, {
+        onConflict: "domain,user_id",
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("[report storage] save failed", error.message, error);
+      return null;
+    }
+    return data as StoredReport;
+  } catch (err) {
+    console.warn("[report storage] save failed", err);
+    return null;
+  }
+}
+
+/**
+ * Fetch report by domain
+ */
+export async function fetchReportByDomain(
+  domain: string,
+  userId: string | null = null
+): Promise<StoredReport | null> {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  try {
+    const query = supabaseAdmin
+      .from("stored_reports")
+      .select("*")
+      .eq("domain", domain)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const { data, error } = userId
+      ? await query.eq("user_id", userId)
+      : await query.is("user_id", null);
+
+    if (error) {
+      console.warn("[report storage] fetch failed", error.message);
+      return null;
+    }
+    return (data && data[0]) as StoredReport | null;
+  } catch (err) {
+    console.warn("[report storage] fetch failed", err);
+    return null;
   }
 }
