@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS stored_reports (
   UNIQUE(domain, user_id)
 );
 
+-- Disable RLS to allow service role access
+ALTER TABLE stored_reports DISABLE ROW LEVEL SECURITY;
+
 -- Indexes for efficient lookups
-CREATE INDEX idx_stored_reports_domain ON stored_reports(domain);
-CREATE INDEX idx_stored_reports_user_id ON stored_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_stored_reports_domain ON stored_reports(domain);
+CREATE INDEX IF NOT EXISTS idx_stored_reports_user_id ON stored_reports(user_id);

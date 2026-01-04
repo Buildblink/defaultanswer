@@ -207,12 +207,19 @@ export async function saveReport(params: {
       .single();
 
     if (error) {
-      console.error("[report storage] save failed", error.message, error);
+      console.error("[report storage] save failed", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        domain: params.domain,
+      });
       return null;
     }
+    console.log("[report storage] saved successfully", { domain: params.domain, id: data.id });
     return data as StoredReport;
   } catch (err) {
-    console.warn("[report storage] save failed", err);
+    console.error("[report storage] save exception", err);
     return null;
   }
 }
