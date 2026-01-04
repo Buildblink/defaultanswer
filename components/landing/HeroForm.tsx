@@ -58,10 +58,18 @@ export function HeroForm({
 
       const data = await analyzeRes.json();
 
+      console.log('[HeroForm] API response:', {
+        reportUrl: data.reportUrl,
+        hasAnalysis: !!data.analysis,
+        reportId: data.reportId
+      });
+
       // Prefer clean URL if available, fallback to old format
       if (data.reportUrl) {
+        console.log('[HeroForm] Using clean URL:', data.reportUrl);
         router.push(data.reportUrl);
       } else if (data.analysis) {
+        console.log('[HeroForm] No clean URL, using legacy format');
         const analysisB64 = btoa(encodeURIComponent(JSON.stringify(data.analysis)));
         router.push(`/defaultanswer/report/${reportId}?url=${encodeURIComponent(normalized)}&data=${analysisB64}`);
       } else {
