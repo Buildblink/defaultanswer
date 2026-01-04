@@ -63,6 +63,7 @@ export async function POST(req: Request) {
 
       // Save full report for clean URL access
       const domain = extractDomain(url)
+      console.log('[analyze] attempting to save report', { domain, reportId })
       const savedReport = await saveReport({
         domain,
         reportId,
@@ -73,9 +74,12 @@ export async function POST(req: Request) {
 
       if (savedReport) {
         reportUrl = `/reports/${domain}`
+        console.log('[analyze] report saved, clean URL generated', { reportUrl })
+      } else {
+        console.error('[analyze] saveReport returned null, falling back to long URL')
       }
     } catch (err) {
-      console.warn('[analyze history] failed', err)
+      console.error('[analyze history] failed', err)
     }
   }
 
