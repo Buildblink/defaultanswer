@@ -1,4 +1,4 @@
-import { analyzeUrl } from "./analyze";
+import { analyzeUrlMultiPage } from "./analyze";
 import type { AnalysisResult, BreakdownItem, AnalysisStatus } from "./scoring";
 
 export type CompareSide = {
@@ -50,8 +50,8 @@ export async function runCompare(
   const reportA = crypto.randomUUID();
   const reportB = crypto.randomUUID();
 
-  const resA = await analyzeUrl(urlA);
-  const resB = await analyzeUrl(urlB);
+  const resA = await analyzeUrlMultiPage(urlA);
+  const resB = await analyzeUrlMultiPage(urlB);
 
   const sideA = buildSide(resA.analysis, urlA, reportA, resA.fallback ? resA.notes : undefined);
   const sideB = buildSide(resB.analysis, urlB, reportB, resB.fallback ? resB.notes : undefined);

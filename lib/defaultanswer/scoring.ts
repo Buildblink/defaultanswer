@@ -55,6 +55,19 @@ export type Evidence = {
   pricingEvidence?: string[]; // short snippets/keywords
 };
 
+export type PageScanMetadata = {
+  scannedPages: {
+    url: string;
+    path: string;
+    status: "success" | "error";
+    error?: string;
+  }[];
+  totalScanned: number;
+  successCount: number;
+  errorCount: number;
+  scanDepth: "homepage-only" | "multi-page";
+};
+
 export type ExtractedData = {
   title?: string;
   metaDescription?: string;
@@ -80,6 +93,7 @@ export type ExtractedData = {
   evaluatedUrl?: string;
   fetchedAt?: string;
   evidence?: Evidence;
+  pageScanMetadata?: PageScanMetadata;
 };
 
 export type FixPlanItem = {

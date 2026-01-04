@@ -9,6 +9,11 @@ type NavItem = {
   visible?: boolean;
 };
 
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
 type SummaryItem = {
   label: string;
   value: string;
@@ -24,14 +29,24 @@ type ReportShellProps = {
   };
   actions: ReactNode;
   navItems: NavItem[];
+  navGroups?: NavGroup[];
   children: ReactNode;
 };
 
-export function ReportShell({ summary, actions, navItems, children }: ReportShellProps) {
+export function ReportShell({ summary, actions, navItems, navGroups, children }: ReportShellProps) {
   const [navOpen, setNavOpen] = useState(false);
   const [showTop, setShowTop] = useState(false);
 
   const filteredNav = useMemo(() => navItems.filter((item) => item.visible !== false), [navItems]);
+  const filteredGroups = useMemo(() => {
+    if (!navGroups || navGroups.length === 0) return [];
+    return navGroups
+      .map((group) => ({
+        label: group.label,
+        items: group.items.filter((item) => item.visible !== false),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [navGroups]);
 
   useEffect(() => {
     const update = () => setShowTop(window.scrollY > 520);
@@ -44,17 +59,38 @@ export function ReportShell({ summary, actions, navItems, children }: ReportShel
     <div className="relative grid gap-6 lg:grid-cols-[240px_1fr] overflow-x-hidden">
       <aside className="hidden lg:block">
         <div className="sticky top-24 space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Jump to</div>
-          <nav className="space-y-2 text-sm">
-            {filteredNav.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                className="block rounded-lg px-2 py-1 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-stone-50"
-              >
-                {item.label}
-              </a>
-            ))}
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Sections</div>
+          <nav className="space-y-4 text-sm">
+            {filteredGroups.length > 0 ? (
+              filteredGroups.map((group) => (
+                <div key={group.label} className="space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">
+                    {group.label}
+                  </div>
+                  <div className="space-y-1">
+                    {group.items.map((item) => (
+                      <a
+                        key={item.id}
+                        href={`#${item.id}`}
+                        className="block rounded-lg px-2 py-1 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-stone-50"
+                      >
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              filteredNav.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className="block rounded-lg px-2 py-1 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-stone-50"
+                >
+                  {item.label}
+                </a>
+              ))
+            )}
           </nav>
         </div>
       </aside>
@@ -66,21 +102,43 @@ export function ReportShell({ summary, actions, navItems, children }: ReportShel
             onClick={() => setNavOpen((prev) => !prev)}
             className="inline-flex items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-900"
           >
-            {navOpen ? "Close navigation" : "Jump to"}
+            {navOpen ? "Close sections" : "Sections"}
           </button>
           {navOpen ? (
             <div className="mt-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm dark:border-stone-800 dark:bg-stone-950">
-              <nav className="grid gap-2 text-sm">
-                {filteredNav.map((item) => (
-                  <a
-                    key={item.id}
-                    href={`#${item.id}`}
-                    onClick={() => setNavOpen(false)}
-                    className="rounded-lg px-2 py-2 text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-900"
-                  >
-                    {item.label}
-                  </a>
-                ))}
+              <nav className="grid gap-4 text-sm">
+                {filteredGroups.length > 0 ? (
+                  filteredGroups.map((group) => (
+                    <div key={group.label} className="space-y-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">
+                        {group.label}
+                      </div>
+                      <div className="grid gap-2">
+                        {group.items.map((item) => (
+                          <a
+                            key={item.id}
+                            href={`#${item.id}`}
+                            onClick={() => setNavOpen(false)}
+                            className="rounded-lg px-2 py-2 text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-900"
+                          >
+                            {item.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filteredNav.map((item) => (
+                    <a
+                      key={item.id}
+                      href={`#${item.id}`}
+                      onClick={() => setNavOpen(false)}
+                      className="rounded-lg px-2 py-2 text-stone-700 hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-900"
+                    >
+                      {item.label}
+                    </a>
+                  ))
+                )}
               </nav>
             </div>
           ) : null}

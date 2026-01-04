@@ -27,7 +27,6 @@ import {
   generateConfidenceDebateBullets,
   getAnalysisStatus,
   getReadinessClassification,
-  getScoreColor,
   groupByCategory,
   safeHostname,
   uniq,
@@ -39,9 +38,8 @@ import { diffScans, fetchLatestScans, isHistoryConfigured, type ScanDiff } from 
 import type { FetchDiagnostics } from "@/lib/defaultanswer/scoring";
 import { ExportButtons } from "./export-buttons";
 import type { ExampleReportContext, ExampleReportData } from "@/app/reports/example-report-context";
-import { ReportRenderer, ReportV2Sections } from "@/components/report/ReportRenderer";
+import { ReportRenderer, ReportRightNowSection, ReportV2Sections } from "@/components/report/ReportRenderer";
 import { Card } from "@/app/(landing)/ui/Card";
-import { Pill } from "@/app/(landing)/ui/Pill";
 import { SectionTitle } from "@/app/(landing)/ui/SectionTitle";
 import { buildReportV2 } from "@/lib/report/report-v2";
 import { resolveLiveProofCategory } from "@/lib/report/liveproof-prompts";
@@ -53,7 +51,6 @@ import {
   type ReportScanSummary,
 } from "@/lib/report/history";
 import { getEntitlements } from "@/lib/auth/entitlements";
-import { HistoryProPanel } from "@/components/report/HistoryProPanel";
 import { ReportShell } from "@/components/report/ReportShell";
 import { CollapsibleSection } from "@/components/report/CollapsibleSection";
 import { ExpandCollapseAll } from "@/components/report/ExpandCollapseAll";
@@ -109,6 +106,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
   const isExampleReport = Boolean(exampleContext?.isExample);
   const { isPro } = await getEntitlements();
   const userId: string | null = null;
+  const aiEnabled = Boolean(process.env.OPENAI_API_KEY);
   const { reportId } = await params;
   const { url = "", data: encodedData } = await searchParams;
 
@@ -125,6 +123,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
       console.log("[report] Failed to decode analysis data");
     }
   }
+  const isAnalysisReady = !isAnalysisMissing;
 
   const ex = analysis.extracted;
   const evaluatedUrl = ex.evaluatedUrl || "";
@@ -160,12 +159,6 @@ export default async function ReportPage({ params, searchParams, exampleContext,
   const analysisStatus = getAnalysisStatus(analysis);
   const hasAnalysis = !isAnalysisMissing;
   const isRealAnalysis = hasAnalysis;
-  const displayStatusLabel =
-    analysisStatus === "snapshot_incomplete"
-      ? "Snapshot incomplete"
-      : analysisStatus === "blocked"
-      ? "Blocked"
-      : scoreLabel;
 
   // Compute readiness for markdown export
   const readiness = getReadinessClassification(
@@ -183,7 +176,6 @@ export default async function ReportPage({ params, searchParams, exampleContext,
     fetchStatus === 403 ||
     fetchStatus === 429;
 
-  const isPlaceholder = !hasAnalysis || analysisStatus !== "ok";
   const primaryUncertainty = beliefPrimaryUncertainty(analysis, analysisStatus);
   const supportingSignals = beliefSupportingSignals(analysis);
   const competitiveDelta =
@@ -318,7 +310,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
       current: undefined,
       previous: null,
       recent: [],
-      message: isPro ? "First scan saved." : "Unlock monitoring to save scan history.",
+      message: isPro ? "First scan saved." : "History is not saved yet.",
     },
     existingSignals,
   };
@@ -401,36 +393,46 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           reportSummary?.aiProof?.[0]?.primaryBlocker ||
           reportSummary?.coverage?.nextMove ||
           "Primary blocker unavailable";
-        const navItems = [
-          { id: "fix-first", label: "Fix this first", visible: true },
-          { id: "right-now", label: "Right now", visible: Boolean(reportV2) },
-          { id: "cold-ai-summary", label: "Cold AI summary", visible: Boolean(reportV2) },
-          { id: "live-proof", label: "Live Proof", visible: Boolean(reportV2?.aiProof.length) },
-          { id: "ai-proof", label: "AI proof", visible: Boolean(reportV2?.aiProof.length) },
-          { id: "reasoning", label: "Reasoning", visible: Boolean(reportV2?.reasoning.steps.length) },
-          {
-            id: "retrieve-vs-guess",
-            label: "Retrieve vs guess",
-            visible:
-              Boolean(reportV2?.retrieveVsInfer.retrievable.length) ||
-              Boolean(reportV2?.retrieveVsInfer.inferred.length),
-          },
-          { id: "coverage", label: "Coverage", visible: Boolean(reportV2) },
-          { id: "competitive", label: "Competitive snapshot", visible: Boolean(reportV2?.competitiveSnapshot.rows.length) },
-          {
-            id: "win-queries",
-            label: "Win queries",
-            visible:
-              Boolean(reportV2?.promptRadar.winnableNow.length) ||
-              Boolean(reportV2?.promptRadar.oneFixAway.length) ||
-              Boolean(reportV2?.promptRadar.blocked.length),
-          },
-          { id: "examples", label: "Examples", visible: Boolean(reportV2) },
-          { id: "quote-ready", label: "Quote-ready copy", visible: Boolean(reportV2?.quoteReady.length) },
-          { id: "citation", label: "Citation readiness", visible: Boolean(reportV2) },
-          { id: "history", label: "History", visible: !isExampleReport && isHistoryConfigured() },
-          { id: "evidence", label: "Evidence", visible: true },
-        ];
+        const blockerKey = resolveBlockerKey(primaryBlockerSummary, analysis);
+        const primaryBlockerLabel = BLOCKER_LABELS[blockerKey];
+        const verdictSentence = buildVerdictSentence(blockerKey, readiness.label);
+        const doNext = buildDoNextAction(blockerKey, displayBrand);
+        const navItems = isAnalysisReady
+          ? [
+              { id: "overview", label: "Overview", visible: true },
+              { id: "do-next", label: "Do this next", visible: true },
+              { id: "right-now", label: "Right now", visible: Boolean(reportV2) },
+              { id: "cold-ai-summary", label: "Cold AI understanding", visible: Boolean(reportV2) },
+              { id: "live-proof", label: "Live Proof", visible: Boolean(reportV2?.aiProof.length) },
+              { id: "evidence", label: "Evidence", visible: true },
+              { id: "competitive", label: "Competitive snapshot", visible: Boolean(reportV2?.competitiveSnapshot.rows.length) },
+              { id: "coverage", label: "Coverage", visible: Boolean(reportV2) },
+              { id: "score-breakdown", label: "Scoring", visible: analysis.breakdown.length > 0 },
+              { id: "history", label: "History", visible: !isExampleReport && isHistoryConfigured() },
+            ]
+          : [{ id: "overview", label: "Overview", visible: true }];
+        const navGroups = isAnalysisReady
+          ? [
+              {
+                label: "Start here",
+                items: navItems.filter((item) =>
+                  ["overview", "do-next", "right-now"].includes(item.id)
+                ),
+              },
+              {
+                label: "Proof & reasoning",
+                items: navItems.filter(
+                  (item) => ["cold-ai-summary", "live-proof", "evidence"].includes(item.id)
+                ),
+              },
+              {
+                label: "Deep dive (optional)",
+                items: navItems.filter((item) =>
+                  ["competitive", "coverage", "score-breakdown", "history"].includes(item.id)
+                ),
+              },
+            ]
+          : [{ label: "Start here", items: navItems }];
         return (
           <ReportShell
             summary={{
@@ -449,148 +451,229 @@ export default async function ReportPage({ params, searchParams, exampleContext,
               },
               blocker: {
                 label: "Primary blocker",
-                value: primaryBlockerSummary,
-                title: primaryBlockerSummary,
+                value: isAnalysisReady ? primaryBlockerLabel : "Analysis pending",
+                title: isAnalysisReady ? primaryBlockerLabel : "Analysis pending",
               },
             }}
             actions={
               <>
-                <ExportButtons reportData={reportData} />
-                <CopyMarkdownButton reportData={reportData} reportId={reportId} compact />
-                {!isExampleReport ? (
-                  <ReportClientTools reportId={reportId} url={url} encodedData={encodedData} className="mt-0" />
-                ) : null}
+                {isAnalysisReady ? (
+                  <>
+                    <a
+                      href="#do-next"
+                      className="inline-flex items-center justify-center rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 shadow-sm transition hover:bg-stone-800 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
+                      title={doNext.description}
+                    >
+                      Next action: {doNext.ctaLabel}
+                    </a>
+                    <ExportButtons reportData={reportData} />
+                    <CopyMarkdownButton reportData={reportData} reportId={reportId} compact />
+                    {!isExampleReport ? (
+                      <ReportClientTools reportId={reportId} url={url} encodedData={encodedData} className="mt-0" />
+                    ) : null}
+                  </>
+                ) : (
+                  <a
+                    href="/defaultanswer"
+                    className="inline-flex items-center justify-center rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 shadow-sm transition hover:bg-stone-800 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
+                  >
+                    Run analysis
+                  </a>
+                )}
               </>
             }
             navItems={navItems}
+            navGroups={navGroups}
           >
             <div>
-              <Card>
-          {isExampleReport && exampleContext ? (
-            <div className="mb-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">
-              <p className="font-semibold text-stone-900 dark:text-stone-100">
-                {exampleContext.disclosureTitle}
-              </p>
-              <p className="mt-1 text-stone-600 dark:text-stone-400">
-                {exampleContext.disclosureText}
-              </p>
-            </div>
-          ) : null}
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="mt-4 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                DefaultAnswer Report
-              </p>
-              <h1 className="text-3xl font-bold tracking-tight">
-                DefaultAnswer Report: {displayDomain || "Unknown Domain"}
-              </h1>
-              <p className="text-base leading-relaxed text-stone-600 dark:text-stone-300">
-                LLM Recommendation Analysis for{" "}
-                <code className="bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-sm">
-                  {url || "N/A"}
-                </code>
-              </p>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500">
-                {hasAnalysis ? (
-                  <>
-                    <Pill>
-                      {exampleReport?.summary.scoreLabel || "Default Answer Score"}: {" "}
-                      <strong className={getScoreColor(analysis.score)}>
-                        {analysis.score >= 0 ? `${analysis.score}/100` : "Pending"}
-                      </strong>
-                    </Pill>
-                    <Pill>Status: {displayStatusLabel}</Pill>
-                    <AnalysisStatusBadge status={analysisStatus} snapshotQuality={analysis.snapshotQuality} />
-                    {isPlaceholder && (
-                      <Pill>
-                        Snapshot limited
-                      </Pill>
-                    )}
-                  </>
-                ) : (
-                  <Pill>Analysis pending ? submit a URL to see your score</Pill>
-                )}
+              <section id="overview" className="mb-8 scroll-mt-28">
+                <Card>
+                  {isExampleReport && exampleContext ? (
+                    <div className="mb-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">
+                      <p className="font-semibold text-stone-900 dark:text-stone-100">
+                        {exampleContext.disclosureTitle}
+                      </p>
+                      <p className="mt-1 text-stone-600 dark:text-stone-400">
+                        {exampleContext.disclosureText}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                        DefaultAnswer Report
+                      </p>
+                      <h1 className="text-3xl font-bold tracking-tight">
+                        DefaultAnswer Report: {displayDomain || "Unknown Domain"}
+                      </h1>
+                      <p className="text-base leading-relaxed text-stone-600 dark:text-stone-300">
+                        AI Recommendation Analysis for{" "}
+                        <code className="bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-sm">
+                          {url || "N/A"}
+                        </code>
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-start gap-3 lg:items-end">
+                      <Link
+                        href="/defaultanswer"
+                        className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-5 py-2 text-sm font-semibold text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
+                      >
+                        Back to DefaultAnswer
+                      </Link>
+                    </div>
+                  </div>
+
+                  {isAnalysisReady ? (
+                    <>
+                      <div className="mt-6 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm shadow-sm dark:border-stone-800 dark:bg-stone-950">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            Default Answer Score
+                          </div>
+                          <div className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-100">
+                            {analysis.score >= 0 ? `${analysis.score}/100` : "Pending"}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm shadow-sm dark:border-stone-800 dark:bg-stone-950">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            Status
+                          </div>
+                          <div className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-100">
+                            {readiness.label}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm shadow-sm dark:border-stone-800 dark:bg-stone-950">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            Primary blocker
+                          </div>
+                          <div className="mt-2 text-lg font-semibold text-stone-900 dark:text-stone-100">
+                            {primaryBlockerLabel}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-base font-semibold text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
+                        {verdictSentence}
+                      </div>
+                      <p className="mt-3 text-sm text-stone-600 dark:text-stone-300">
+                        This does not measure SEO or traffic - only whether AI would recommend you.
+                      </p>
+
+                      <div className="mt-6 flex flex-wrap items-center gap-3">
+                        {!isExampleReport ? (
+                          <CopyDebugJsonButton reportId={reportId} url={url} analysis={analysis} />
+                        ) : null}
+                      </div>
+
+                      {!isExampleReport ? <HowToUseThisReport /> : null}
+                    </>
+                  ) : (
+                    <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 dark:border-stone-800 dark:bg-stone-900">
+                      <div className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                        Analysis isn't ready yet.
+                      </div>
+                      <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+                        Run analysis to generate your report.
+                      </p>
+                      <div className="mt-4">
+                        <Link
+                          href="/defaultanswer"
+                          className="inline-flex items-center justify-center rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 shadow-sm transition hover:bg-stone-800 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
+                        >
+                          Run analysis
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </section>
+
+        {isAnalysisReady ? (
+        <>
+        <section id="do-next" className="mb-10 scroll-mt-28">
+          <Card>
+            <SectionTitle title="Do this next (15-30 minutes)" />
+            <div className="mt-4 space-y-4 text-stone-700 dark:text-stone-300">
+              <div>
+                <div className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                  {doNext.action}
+                </div>
+                <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+                  {doNext.why}
+                </p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 dark:border-stone-800 dark:bg-stone-900">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                    Snippet
+                  </div>
+                  <CopyButton text={doNext.snippet} />
+                </div>
+                <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-white px-3 py-2 text-xs text-stone-800 dark:bg-stone-950 dark:text-stone-200">
+{doNext.snippet}
+                </pre>
               </div>
             </div>
-            <div className="flex flex-col items-start gap-3 lg:items-end">
-              <Link
-                href="/defaultanswer"
-                className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-5 py-2 text-sm font-semibold text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
-              >
-                Back to DefaultAnswer
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            {!isExampleReport && (
-              <>
-                <CopyDebugJsonButton reportId={reportId} url={url} analysis={analysis} />
-              </>
-            )}
-          </div>
-
-          {!isExampleReport ? <HowToUseThisReport /> : null}
-        </Card>
-
-        <HistoryProPanel
-          isPro={Boolean(reportData.proHistory?.isPro)}
-          message={reportData.proHistory?.message}
-          current={reportData.proHistory?.current || null}
-          previous={reportData.proHistory?.previous || null}
-          recent={reportData.proHistory?.recent || []}
-        />
-
-        {/* 1) Belief */}
-        <section className="mb-10">
-          <SectionTitle title="My current belief about your site" />
-          <div className="mt-4">
-            <Card>
-              <div className="flex flex-col gap-3">
-                <ReadinessClassification
-                  analysis={analysis}
-                  hasAnalysis={hasAnalysis}
-                  explanationOverride={readinessExplanation}
-                  status={analysisStatus}
-                />
-
-                <p className="text-stone-800 dark:text-stone-200 leading-relaxed">
-                  {beliefSummaryText({
-                    brand: displayBrand || displayDomain || "your site",
-                    readinessLabel: readiness.label,
-                    confidenceScore: analysis.score,
-                    supporting: supportingSignals.slice(0, 2),
-                    primaryUncertainty,
-                    status: analysisStatus,
-                  })}
-                </p>
-
-                <p className="text-sm text-stone-600 dark:text-stone-400">
-                  Based on what I can retrieve today. This evaluates <strong>AI recommendation readiness</strong>, not SEO rankings or traffic.
-                </p>
-              </div>
-            </Card>
-          </div>
+          </Card>
         </section>
 
-        {/* 2) Delta */}
+        <ReportRightNowSection reportV2={reportV2} />
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+            Why this is true (optional)
+          </div>
+          <ExpandCollapseAll targetId="report-disclosure" />
+        </div>
+        </>
+        ) : null}
+        <div id="report-disclosure" className="space-y-6">
+
+        <CollapsibleSection title="My current belief about your site">
+          <Card>
+            <div className="flex flex-col gap-3">
+              <ReadinessClassification
+                analysis={analysis}
+                hasAnalysis={hasAnalysis}
+                explanationOverride={readinessExplanation}
+                status={analysisStatus}
+              />
+
+              <p className="text-stone-800 dark:text-stone-200 leading-relaxed">
+                {beliefSummaryText({
+                  brand: displayBrand || displayDomain || "your site",
+                  readinessLabel: readiness.label,
+                  confidenceScore: analysis.score,
+                  supporting: supportingSignals.slice(0, 2),
+                  primaryUncertainty,
+                  status: analysisStatus,
+                })}
+              </p>
+
+              <p className="text-sm text-stone-600 dark:text-stone-400">
+                This does not measure SEO or traffic - only whether AI would recommend you.
+              </p>
+            </div>
+          </Card>
+        </CollapsibleSection>
+
         {!isExampleReport && (
-          <BeliefHistory
-            domain={displayDomain || "unknown"}
-            reportId={reportId}
-            timestamp={generatedAt}
-            readiness_state={readiness.label as ReadinessState}
-            confidence_score={analysis.score}
-            blocking_factors={beliefBlockingFactors(analysis, analysisStatus)}
-            supporting_signals={supportingSignals}
-            primary_uncertainty={primaryUncertainty}
-          />
+          <CollapsibleSection title="Belief history">
+            <BeliefHistory
+              domain={displayDomain || "unknown"}
+              reportId={reportId}
+              timestamp={generatedAt}
+              readiness_state={readiness.label as ReadinessState}
+              confidence_score={analysis.score}
+              blocking_factors={beliefBlockingFactors(analysis, analysisStatus)}
+              supporting_signals={supportingSignals}
+              primary_uncertainty={primaryUncertainty}
+            />
+          </CollapsibleSection>
         )}
 
-        {/* 3) Debate */}
-        <section className="mb-10">
-          <SectionTitle title="Why I’m not confident recommending you yet" />
-          <ul className="mt-4 list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
+        <CollapsibleSection title="Why I'm not confident recommending you yet">
+          <ul className="list-disc list-inside space-y-2 text-stone-700 dark:text-stone-300">
             {generateConfidenceDebateBullets(analysis, displayBrand, analysisStatus).map((b) => (
               <li key={b}>{b}</li>
             ))}
@@ -598,37 +681,11 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           <p className="mt-4 text-stone-700 dark:text-stone-300">
             To recommend you without hesitation, I need direct answers that I can retrieve, not infer.
           </p>
-        </section>
-
-        {/* 4) One causal change */}
-        <CollapsibleSection id="fix-first" title={oneChangeTitle} defaultOpen>
-          <div className="mt-4">
-            {whatToFixDecision.kind === "noCriticalFixes" ? (
-              <NoCriticalFixesDetected
-                note={isExampleReport ? exampleContext?.summaryNoteOverride || exampleReport?.summary.note : undefined}
-              />
-            ) : (
-              <OneChangeThatIncreasesConfidence
-                fix={dominantFixItem}
-                guidance={topFixGuidance}
-                brandName={displayBrand}
-              />
-            )}
-          </div>
         </CollapsibleSection>
-
-        <div id="report-disclosure" className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Report sections
-            </div>
-            <ExpandCollapseAll targetId="report-disclosure" />
-          </div>
 
         <ReportV2Sections
           reportV2={reportV2}
           reportId={reportId}
-          isPro={isPro}
           evaluatedUrl={analysis.extracted.evaluatedUrl || url}
           brandName={displayBrand}
           domain={displayDomain}
@@ -637,6 +694,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           defaultLiveProofCategory={defaultLiveProofCategory}
           coldSummarySnapshot={coldSummarySnapshot}
           coldSummaryExistingSignals={existingSignals}
+          aiEnabled={aiEnabled}
         />
 
         {/* Competitive Delta */}
@@ -748,6 +806,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
         {/* Section: Score Breakdown */}
         {analysis.breakdown.length > 0 && (
           <CollapsibleSection
+            id="score-breakdown"
             title="Score Breakdown"
             subtitle={`Your score is calculated from ${analysis.breakdown.length} signals that influence LLM recommendations:`}
           >
@@ -1162,6 +1221,48 @@ export default async function ReportPage({ params, searchParams, exampleContext,
                 <dt className="w-40 text-stone-500">Fetch timestamp</dt>
                 <dd>{analysis.extracted.fetchedAt || "N/A"}</dd>
               </div>
+
+              {/* Page Scan Metadata */}
+              {analysis.extracted.pageScanMetadata && (
+                <>
+                  <div className="flex">
+                    <dt className="w-40 text-stone-500">Scan depth</dt>
+                    <dd className="capitalize">
+                      {analysis.extracted.pageScanMetadata.scanDepth.replace("-", " ")}
+                      {analysis.extracted.pageScanMetadata.scanDepth === "multi-page" &&
+                        ` (${analysis.extracted.pageScanMetadata.totalScanned} total)`}
+                    </dd>
+                  </div>
+                  <div className="flex">
+                    <dt className="w-40 text-stone-500">Pages scanned</dt>
+                    <dd>
+                      <div className="space-y-1 text-xs">
+                        {analysis.extracted.pageScanMetadata.scannedPages.map((page, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className={page.status === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                              {page.status === "success" ? "✓" : "✗"}
+                            </span>
+                            <div className="flex-1">
+                              <div className="break-all">
+                                {page.path === "/" ? `${page.url} (homepage)` : page.url}
+                              </div>
+                              {page.error && (
+                                <div className="text-stone-500 dark:text-stone-500 italic">
+                                  {page.error}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                        {analysis.extracted.pageScanMetadata.successCount} successful, {analysis.extracted.pageScanMetadata.errorCount} failed
+                      </div>
+                    </dd>
+                  </div>
+                </>
+              )}
+
               <div className="flex">
                 <dt className="w-40 text-stone-500">Generated At</dt>
                 <dd>{generatedAt}</dd>
@@ -1388,6 +1489,198 @@ function mapReasoningSignalToCategory(signal: string): string {
   if (s.includes("trust")) return "Trust & Legitimacy";
   if (s.includes("commercial")) return "Commercial Clarity";
   return "Other";
+}
+
+type BlockerKey = "commercial_clarity" | "audience_clarity" | "trust" | "answerability";
+
+const BLOCKER_LABELS: Record<BlockerKey, string> = {
+  commercial_clarity: "Pricing / offer clarity",
+  audience_clarity: "Who it's for",
+  trust: "Trust + legitimacy",
+  answerability: "FAQ / direct answers",
+};
+
+const BLOCKER_REASONS: Record<BlockerKey, string> = {
+  commercial_clarity: "pricing is unclear",
+  audience_clarity: "who it's for isn't clear",
+  trust: "trust details are missing",
+  answerability: "FAQ answers are missing",
+};
+
+type DoNextAction = {
+  action: string;
+  why: string;
+  snippet: string;
+  ctaLabel: string;
+  description: string;
+};
+
+function resolveBlockerKey(primaryBlocker: string, analysis: AnalysisResult): BlockerKey {
+  const blocker = (primaryBlocker || "").toLowerCase();
+  if (blocker.includes("pricing") || blocker.includes("plan") || blocker.includes("offer")) {
+    return "commercial_clarity";
+  }
+  if (blocker.includes("audience") || blocker.includes("position") || blocker.includes("category") || blocker.includes("entity")) {
+    return "audience_clarity";
+  }
+  if (blocker.includes("trust") || blocker.includes("contact") || blocker.includes("about")) {
+    return "trust";
+  }
+  if (blocker.includes("faq") || blocker.includes("answer")) {
+    return "answerability";
+  }
+  if (!analysis.extracted.hasPricing) return "commercial_clarity";
+  if (!analysis.extracted.hasFAQ) return "answerability";
+  if (!analysis.extracted.hasAbout && !analysis.extracted.hasContactSignals) return "trust";
+  return "audience_clarity";
+}
+
+function buildVerdictSentence(blockerKey: BlockerKey, readinessLabel: string) {
+  const wouldRecommend = /strong|ready/i.test(readinessLabel || "");
+  const reason = BLOCKER_REASONS[blockerKey];
+  const lead = wouldRecommend ? "AI would recommend you" : "AI wouldn't recommend you yet";
+  return `${lead}, because ${reason}.`;
+}
+
+function buildDoNextAction(blockerKey: BlockerKey, brandName: string): DoNextAction {
+  const brand = brandName || "Your brand";
+
+  if (blockerKey === "answerability") {
+    return {
+      action: "Add an FAQ block to your homepage",
+      why: "FAQs give AI exact answers it can repeat without guessing.",
+      snippet: buildFaqSnippet(brand),
+      ctaLabel: "Add FAQ block",
+      description: `Copy a ready-to-paste FAQ template for ${brand}.`,
+    };
+  }
+
+  if (blockerKey === "commercial_clarity") {
+    return {
+      action: "Add a clear pricing section",
+      why: "Pricing tells AI you sell something and who it is for.",
+      snippet: buildPricingSnippet(),
+      ctaLabel: "Add pricing section",
+      description: `Copy a pricing section template for ${brand}.`,
+    };
+  }
+
+  if (blockerKey === "audience_clarity") {
+    return {
+      action: "Add a \"Who this is for\" section",
+      why: "AI needs a clear audience to know when to recommend you.",
+      snippet: buildAudienceSnippet(brand),
+      ctaLabel: "Clarify your audience",
+      description: `Copy a short audience positioning block for ${brand}.`,
+    };
+  }
+
+  if (blockerKey === "trust") {
+    return {
+      action: "Add About + Contact info",
+      why: "Trust details help AI recommend you with confidence.",
+      snippet: buildAboutContactSnippet(brand),
+      ctaLabel: "Add About + Contact",
+      description: `Copy About and Contact boilerplate for ${brand}.`,
+    };
+  }
+
+  return {
+    action: "Add an FAQ block to your homepage",
+    why: "FAQs give AI exact answers it can repeat without guessing.",
+    snippet: buildFaqSnippet(brand),
+    ctaLabel: "Add FAQ block",
+    description: `Copy a ready-to-paste FAQ template for ${brand}.`,
+  };
+}
+
+function buildFaqSnippet(brand: string) {
+  return [
+    "FAQ",
+    "",
+    `Q: What is ${brand}?`,
+    `A: ${brand} is a [category] that helps [audience] [primary outcome].`,
+    "",
+    "Q: Who is it for?",
+    "A: Built for [audience] who need [job-to-be-done].",
+    "",
+    "Q: How does it work?",
+    "A: [Step one], [step two], [step three].",
+    "",
+    "Q: What makes it different?",
+    "A: [Differentiator 1], [differentiator 2], [differentiator 3].",
+    "",
+    "Q: How do I get started?",
+    "A: [Trial/signup], [setup time], [first result].",
+  ].join("\n");
+}
+
+function buildPricingSnippet() {
+  return [
+    "Pricing",
+    "",
+    "Starter - $X/mo",
+    "- Best for [audience]",
+    "- Includes [core feature]",
+    "",
+    "Growth - $Y/mo",
+    "- Best for [team size/use case]",
+    "- Includes [advanced feature]",
+    "",
+    "Enterprise - Contact us",
+    "",
+    "Mini table:",
+    "| Plan | Price | Best for |",
+    "| --- | --- | --- |",
+    "| Starter | $X/mo | [audience] |",
+    "| Growth | $Y/mo | [team/use case] |",
+  ].join("\n");
+}
+
+function buildAudienceSnippet(brand: string) {
+  return [
+    "Who this is for",
+    "",
+    `- Ideal for: [audience] who want [outcome].`,
+    `- Not for: [audience] who need [constraint].`,
+    `- Best when: [context or workflow].`,
+    "",
+    `In one line: ${brand} helps [audience] [outcome].`,
+  ].join("\n");
+}
+
+function buildAboutContactSnippet(brand: string) {
+  return [
+    `About ${brand}`,
+    "",
+    `${brand} helps [audience] achieve [outcome] by [how it works].`,
+    "Founded in [year]. Based in [location].",
+    "",
+    "Contact",
+    "",
+    "Email: [support@company.com]",
+    "Phone: [+1 (000) 000-0000]",
+    "Address: [Street], [City], [State], [ZIP]",
+  ].join("\n");
+}
+
+function getSnippetForFix(action: string, brandName: string): string | null {
+  const a = (action || "").toLowerCase();
+  const brand = brandName || "Your brand";
+
+  if (a.includes("faq")) {
+    return buildFaqSnippet(brand);
+  }
+
+  if (a.includes("pricing") || a.includes("plan")) {
+    return buildPricingSnippet();
+  }
+
+  if (a.includes("contact") || a.includes("about") || a.includes("trust")) {
+    return buildAboutContactSnippet(brand);
+  }
+
+  return null;
 }
 
 function getScoreLabel(_score: number): string {
@@ -1617,6 +1910,7 @@ function OneChangeThatIncreasesConfidence(props: {
   const { fix, guidance } = props;
   if (!fix || !guidance) return null;
 
+  const snippet = getSnippetForFix(fix.action, props.brandName);
   const category = mapFixToCategory(fix.action);
   const change = whatChangesIfFixed(category, props.brandName);
   const remains = whatRemainsIfNotFixed(category, props.brandName);
@@ -1659,6 +1953,20 @@ function OneChangeThatIncreasesConfidence(props: {
           </ol>
         </div>
       </div>
+
+      {snippet ? (
+        <div className="mt-5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Copy snippet
+            </div>
+            <CopyButton text={snippet} />
+          </div>
+          <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-white px-3 py-2 text-xs text-stone-800 dark:bg-stone-950 dark:text-stone-200">
+{snippet}
+          </pre>
+        </div>
+      ) : null}
     </Card>
   );
 }

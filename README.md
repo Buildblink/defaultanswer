@@ -20,6 +20,17 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment variables
+
+Add these in `.env.local` and your Vercel project settings:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (default: `gpt-4o-mini`)
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL` (default: `claude-3-5-sonnet-latest`, fallback: `claude-3-5-haiku-latest`)
+- `DEFAULTANSWER_ADMIN_TOKEN` (required for `/api/admin/sweep/*` and `/admin/sweeps`)
+- `SUPABASE_SERVICE_ROLE_KEY` (required for admin sweep writes)
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

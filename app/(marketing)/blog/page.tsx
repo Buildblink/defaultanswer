@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { blogPosts } from "./posts";
+import { getAllPosts } from "@/lib/blog";
 
 export const metadata: Metadata = {
   title: "DefaultAnswer blog",
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 };
 
 export default function BlogPage() {
+  const posts = getAllPosts();
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
       <section className="mx-auto max-w-3xl px-4 py-16">
@@ -23,7 +25,7 @@ export default function BlogPage() {
           Analysis on AI recommendation readiness, retrievability, and the signals that affect citing decisions.
         </p>
         <div className="mt-10 space-y-4">
-          {blogPosts.map((post) => (
+          {posts.map((post) => (
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
@@ -36,6 +38,23 @@ export default function BlogPage() {
               <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-300">
                 {post.description}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                <span>
+                  {new Date(post.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+                <span className="text-stone-300 dark:text-stone-700">•</span>
+                <span>{post.category}</span>
+                {post.tags.length ? (
+                  <>
+                    <span className="text-stone-300 dark:text-stone-700">•</span>
+                    <span>{post.tags.join(", ")}</span>
+                  </>
+                ) : null}
+              </div>
             </Link>
           ))}
         </div>

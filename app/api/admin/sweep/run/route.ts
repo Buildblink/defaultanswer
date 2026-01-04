@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { PROMPT_SET_VERSION, SWEEP_PROMPTS } from "@/lib/sweep/prompt-set";
 import { extractLearningFields, extractSweepSignals } from "@/lib/sweep/extract";
@@ -13,6 +14,11 @@ type RunBody = {
   providers?: { openai?: boolean; anthropic?: boolean };
   limitPrompts?: number;
   preset?: string;
+  mode?: "custom";
+  customPromptTemplate?: string;
+  useCase?: string;
+  runs?: number;
+  modelOverrides?: { openai?: string; anthropic?: string; model?: string };
   model?: string;
   openaiModel?: string;
   anthropicModel?: string;
@@ -57,6 +63,22 @@ function buildPrompt(template: string, vars: { category: string; brandName: stri
     .replace(/\{\{BRAND\}\}/g, vars.brandName)
     .replace(/\{\{DOMAIN\}\}/g, vars.domain)
     .trim();
+}
+
+function buildCustomPrompt(
+  template: string,
+  vars: { category: string; brandName: string; domain: string; useCase: string }
+) {
+  return template
+    .replace(/\{\{CATEGORY\}\}/g, vars.category)
+    .replace(/\{\{BRAND_NAME\}\}/g, vars.brandName)
+    .replace(/\{\{DOMAIN\}\}/g, vars.domain)
+    .replace(/\{\{USE_CASE\}\}/g, vars.useCase)
+    .trim();
+}
+
+function customPromptKey(template: string) {
+  return `custom:${createHash("sha1").update(template).digest("hex").slice(0, 8)}`;
 }
 
 function isUnknownResponse(text: string): { unknown: boolean; reason: string | null } {
@@ -110,10 +132,14 @@ export async function POST(req: Request) {
       category: body.category,
       brandName: body.brandName,
       domain: body.domain,
+      useCase: body.useCase,
       providers: body.providers,
       limitPrompts: body.limitPrompts,
       preset: body.preset,
+      mode: body.mode,
+      runs: body.runs,
       model: body.model,
+      modelOverrides: body.modelOverrides,
       openaiModel: body.openaiModel,
       anthropicModel: body.anthropicModel,
     },
@@ -174,23 +200,50 @@ export async function POST(req: Request) {
   }
 
   const promptVars = { category, brandName, domain };
-  const basePrompts =
-    body.preset === "learning_v1_1"
-      ? SWEEP_PROMPTS.filter((prompt) => prompt.intent === "learning_v1_1")
-      : body.preset === "learning_confidence_gate_v1"
-      ? SWEEP_PROMPTS.filter((prompt) => prompt.intent === "learning_confidence_gate_v1")
+  const isCustomMode = body.mode === "custom";
+  const presetPromptKeys: Record<string, string[]> = {
+    learning_v1_1: SWEEP_PROMPTS.filter((prompt) => prompt.intent === "learning_v1_1").map(
+      (prompt) => prompt.key
+    ),
+    learning_confidence_gate_v1: ["learning_confidence_gate_v1"],
+  };
+
+  if (isCustomMode && !body.customPromptTemplate?.trim()) {
+    const error = normalizeSupabaseError("customPromptTemplate is required.");
+    logDebug({ debugId, stage: "custom_prompt", error });
+    return NextResponse.json(
+      { ok: false, debugId, stage: "custom_prompt", error },
+      { status: 400 }
+    );
+  }
+
+  const basePrompts = isCustomMode
+    ? []
+    : preset && presetPromptKeys[preset]?.length
+      ? SWEEP_PROMPTS.filter((prompt) => presetPromptKeys[preset].includes(prompt.key))
       : SWEEP_PROMPTS;
   logDebug({
     debugId,
     stage: "prompts_resolved",
     promptSetVersion: PROMPT_SET_VERSION,
-    promptCount: basePrompts.length,
+    promptCount: isCustomMode ? 1 : basePrompts.length,
     preset,
   });
-  const prompts = basePrompts.slice(0, limitPrompts).map((prompt) => ({
-    ...prompt,
-    promptText: buildPrompt(prompt.template, promptVars),
-  }));
+  const prompts = isCustomMode
+    ? [
+        {
+          key: customPromptKey(body.customPromptTemplate!.trim()),
+          template: body.customPromptTemplate!.trim(),
+          promptText: buildCustomPrompt(body.customPromptTemplate!.trim(), {
+            ...promptVars,
+            useCase: body.useCase || "",
+          }),
+        },
+      ]
+    : basePrompts.slice(0, limitPrompts).map((prompt) => ({
+        ...prompt,
+        promptText: buildPrompt(prompt.template, promptVars),
+      }));
   logDebug({
     debugId,
     stage: "prompts_prepared",
@@ -198,9 +251,29 @@ export async function POST(req: Request) {
     sampleKeys: prompts.slice(0, 3).map((prompt) => prompt.key),
   });
 
-  const openaiModel = body.openaiModel || body.model || process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const runsCount = isCustomMode ? Math.min(Math.max(body.runs ?? 1, 1), 5) : 1;
+  const promptsCountForSweep = isCustomMode ? prompts.length * runsCount : prompts.length;
+  logDebug({
+    debugId,
+    stage: "runs_config",
+    runsCount,
+    promptsCountForSweep,
+  });
+
+  const openaiModel =
+    body.modelOverrides?.openai ||
+    body.openaiModel ||
+    body.modelOverrides?.model ||
+    body.model ||
+    process.env.OPENAI_MODEL ||
+    "gpt-4o-mini";
   const anthropicModel =
-    body.anthropicModel || body.model || process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest";
+    body.modelOverrides?.anthropic ||
+    body.anthropicModel ||
+    body.modelOverrides?.model ||
+    body.model ||
+    process.env.ANTHROPIC_MODEL ||
+    "claude-3-5-sonnet-latest";
 
   const models: Array<{ provider: string; model: string }> = [];
   if (providers.openai) {
@@ -215,7 +288,7 @@ export async function POST(req: Request) {
     .insert({
       label: body.label || "manual",
       prompt_set_version: PROMPT_SET_VERSION,
-      prompts_count: prompts.length,
+      prompts_count: promptsCountForSweep,
       models,
       notes: null,
     })
@@ -253,103 +326,108 @@ export async function POST(req: Request) {
       stage: "prepared_results",
       provider: "openai",
       preparedCount: prompts.length,
+      runsCount,
       sampleKeys: prompts.slice(0, 3).map((prompt) => prompt.key),
     });
     for (const prompt of prompts) {
-      console.log("[sweep][openai]", prompt.key);
-      let responseText: string | null = null;
-      let responseJson: unknown = null;
-      let usageJson: unknown | null = null;
-      let errorText: string | null = null;
-      const startedAt = Date.now();
-      providerStats.openai.attempted += 1;
-      try {
-        const response = await runOpenAiPrompt(prompt.promptText, model);
-        responseText = response.text;
-        responseJson = response.responseJson;
-        usageJson = response.usageJson;
-        providerStats.openai.succeeded += 1;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "OpenAI error";
-        errorText = msg;
-        console.warn("[sweep][openai] failed:", msg);
-        providerStats.openai.failed += 1;
-      }
-      const latencyMs = Date.now() - startedAt;
-      const unknownInfo = isUnknownResponse(responseText || "");
-      const expectList = shouldExpectList(prompt.key);
-      const extracted = extractSweepSignals({
-        responseText: responseText || "",
-        brandNames,
-        domains,
-        expectList,
-      });
-      const learningExtract = extractLearningFields({
-        prompt: prompt.promptText,
-        response: responseText,
-      });
-      const finalErrorText = errorText ?? (extracted.parseFailed ? "parse_failed" : null);
-      const evaluationNotes = {
-        extraction_confidence: extracted.extractionConfidence,
-        reason_if_unknown: unknownInfo.reason,
-      };
-
-      attempted += 1;
-      const { error: insertError } = await supabaseAdmin.from("ai_sweep_results").insert({
-        sweep_id: sweepId,
-        provider: "openai",
-        model,
-        prompt_key: prompt.key,
-        prompt: prompt.promptText,
-        prompt_text: prompt.promptText,
-        response_text: responseText,
-        response_json: responseJson,
-        usage_json: usageJson,
-        error_text: finalErrorText,
-        latency_ms: latencyMs,
-        mentioned: extracted.mentioned,
-        mention_rank: extracted.mentionRank,
-        winner: extracted.winner,
-        alternatives: extracted.alternatives,
-        has_domain_mention: extracted.hasDomainMention,
-        has_brand_mention: extracted.hasBrandMention,
-        confidence: extracted.confidence,
-        evaluation_notes: evaluationNotes,
-        learning_signal: null,
-        learning_extract: learningExtract,
-      });
-      if (insertError) {
-        const error = normalizeSupabaseError(insertError);
-        logDebug({
-          debugId,
-          stage: "insert_sweep_results",
-          provider: "openai",
-          promptKey: prompt.key,
-          table: "ai_sweep_results",
-          error,
-          insertedCount: inserted,
-        });
-        failed += 1;
-        console.error("[sweep][openai] insert failed:", insertError);
-        if (!seenErrors.has(insertError.message)) {
-          errors.push(insertError.message);
-          seenErrors.add(insertError.message);
+      for (let runIndex = 0; runIndex < runsCount; runIndex += 1) {
+        console.log("[sweep][openai]", prompt.key, `run:${runIndex + 1}`);
+        let responseText: string | null = null;
+        let responseJson: unknown = null;
+        let usageJson: unknown | null = null;
+        let errorText: string | null = null;
+        const startedAt = Date.now();
+        providerStats.openai.attempted += 1;
+        try {
+          const response = await runOpenAiPrompt(prompt.promptText, model);
+          responseText = response.text;
+          responseJson = response.responseJson;
+          usageJson = response.usageJson;
+          providerStats.openai.succeeded += 1;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "OpenAI error";
+          errorText = msg;
+          console.warn("[sweep][openai] failed:", msg);
+          providerStats.openai.failed += 1;
         }
-        return NextResponse.json(
-          { ok: false, debugId, stage: "insert_sweep_results", error },
-          { status: 500 }
-        );
-      } else {
-        inserted += 1;
-        logDebug({
-          debugId,
-          stage: "insert_sweep_results",
-          provider: "openai",
-          promptKey: prompt.key,
-          table: "ai_sweep_results",
-          insertedCount: inserted,
-          error: null,
+        const latencyMs = Date.now() - startedAt;
+        const unknownInfo = isUnknownResponse(responseText || "");
+        const expectList = shouldExpectList(prompt.key);
+        const extracted = extractSweepSignals({
+          responseText: responseText || "",
+          brandNames,
+          domains,
+          expectList,
         });
+        const learningExtract = extractLearningFields({
+          prompt: prompt.promptText,
+          response: responseText,
+        });
+        const finalErrorText = errorText ?? (extracted.parseFailed ? "parse_failed" : null);
+        const evaluationNotes = {
+          extraction_confidence: extracted.extractionConfidence,
+          reason_if_unknown: unknownInfo.reason,
+          ...(isCustomMode ? { prompt_group: "custom" } : {}),
+        };
+
+        attempted += 1;
+        const promptTemplate = isCustomMode ? prompt.template : prompt.promptText;
+        const { error: insertError } = await supabaseAdmin.from("ai_sweep_results").insert({
+          sweep_id: sweepId,
+          provider: "openai",
+          model,
+          prompt_key: prompt.key,
+          prompt: promptTemplate,
+          prompt_text: prompt.promptText,
+          response_text: responseText,
+          response_json: responseJson,
+          usage_json: usageJson,
+          error_text: finalErrorText,
+          latency_ms: latencyMs,
+          mentioned: extracted.mentioned,
+          mention_rank: extracted.mentionRank,
+          winner: extracted.winner,
+          alternatives: extracted.alternatives,
+          has_domain_mention: extracted.hasDomainMention,
+          has_brand_mention: extracted.hasBrandMention,
+          confidence: extracted.confidence,
+          evaluation_notes: evaluationNotes,
+          learning_signal: null,
+          learning_extract: learningExtract,
+        });
+        if (insertError) {
+          const error = normalizeSupabaseError(insertError);
+          logDebug({
+            debugId,
+            stage: "insert_sweep_results",
+            provider: "openai",
+            promptKey: prompt.key,
+            table: "ai_sweep_results",
+            error,
+            insertedCount: inserted,
+          });
+          failed += 1;
+          console.error("[sweep][openai] insert failed:", insertError);
+          if (!seenErrors.has(insertError.message)) {
+            errors.push(insertError.message);
+            seenErrors.add(insertError.message);
+          }
+          return NextResponse.json(
+            { ok: false, debugId, stage: "insert_sweep_results", error },
+            { status: 500 }
+          );
+        } else {
+          inserted += 1;
+          logDebug({
+            debugId,
+            stage: "insert_sweep_results",
+            provider: "openai",
+            promptKey: prompt.key,
+            table: "ai_sweep_results",
+            insertedCount: inserted,
+            error: null,
+          });
+        }
       }
     }
   }
@@ -361,103 +439,108 @@ export async function POST(req: Request) {
       stage: "prepared_results",
       provider: "anthropic",
       preparedCount: prompts.length,
+      runsCount,
       sampleKeys: prompts.slice(0, 3).map((prompt) => prompt.key),
     });
     for (const prompt of prompts) {
-      console.log("[sweep][anthropic]", prompt.key);
-      let responseText: string | null = null;
-      let responseJson: unknown = null;
-      let usageJson: unknown | null = null;
-      let errorText: string | null = null;
-      const startedAt = Date.now();
-      providerStats.anthropic.attempted += 1;
-      try {
-        const response = await runAnthropicPrompt(prompt.promptText, model);
-        responseText = response.text;
-        responseJson = response.responseJson;
-        usageJson = response.usageJson;
-        providerStats.anthropic.succeeded += 1;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Anthropic error";
-        errorText = msg;
-        console.warn("[sweep][anthropic] failed:", msg);
-        providerStats.anthropic.failed += 1;
-      }
-      const latencyMs = Date.now() - startedAt;
-      const unknownInfo = isUnknownResponse(responseText || "");
-      const expectList = shouldExpectList(prompt.key);
-      const extracted = extractSweepSignals({
-        responseText: responseText || "",
-        brandNames,
-        domains,
-        expectList,
-      });
-      const learningExtract = extractLearningFields({
-        prompt: prompt.promptText,
-        response: responseText,
-      });
-      const finalErrorText = errorText ?? (extracted.parseFailed ? "parse_failed" : null);
-      const evaluationNotes = {
-        extraction_confidence: extracted.extractionConfidence,
-        reason_if_unknown: unknownInfo.reason,
-      };
-
-      attempted += 1;
-      const { error: insertError } = await supabaseAdmin.from("ai_sweep_results").insert({
-        sweep_id: sweepId,
-        provider: "anthropic",
-        model,
-        prompt_key: prompt.key,
-        prompt: prompt.promptText,
-        prompt_text: prompt.promptText,
-        response_text: responseText,
-        response_json: responseJson,
-        usage_json: usageJson,
-        error_text: finalErrorText,
-        latency_ms: latencyMs,
-        mentioned: extracted.mentioned,
-        mention_rank: extracted.mentionRank,
-        winner: extracted.winner,
-        alternatives: extracted.alternatives,
-        has_domain_mention: extracted.hasDomainMention,
-        has_brand_mention: extracted.hasBrandMention,
-        confidence: extracted.confidence,
-        evaluation_notes: evaluationNotes,
-        learning_signal: null,
-        learning_extract: learningExtract,
-      });
-      if (insertError) {
-        const error = normalizeSupabaseError(insertError);
-        logDebug({
-          debugId,
-          stage: "insert_sweep_results",
-          provider: "anthropic",
-          promptKey: prompt.key,
-          table: "ai_sweep_results",
-          error,
-          insertedCount: inserted,
-        });
-        failed += 1;
-        console.error("[sweep][anthropic] insert failed:", insertError);
-        if (!seenErrors.has(insertError.message)) {
-          errors.push(insertError.message);
-          seenErrors.add(insertError.message);
+      for (let runIndex = 0; runIndex < runsCount; runIndex += 1) {
+        console.log("[sweep][anthropic]", prompt.key, `run:${runIndex + 1}`);
+        let responseText: string | null = null;
+        let responseJson: unknown = null;
+        let usageJson: unknown | null = null;
+        let errorText: string | null = null;
+        const startedAt = Date.now();
+        providerStats.anthropic.attempted += 1;
+        try {
+          const response = await runAnthropicPrompt(prompt.promptText, model);
+          responseText = response.text;
+          responseJson = response.responseJson;
+          usageJson = response.usageJson;
+          providerStats.anthropic.succeeded += 1;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Anthropic error";
+          errorText = msg;
+          console.warn("[sweep][anthropic] failed:", msg);
+          providerStats.anthropic.failed += 1;
         }
-        return NextResponse.json(
-          { ok: false, debugId, stage: "insert_sweep_results", error },
-          { status: 500 }
-        );
-      } else {
-        inserted += 1;
-        logDebug({
-          debugId,
-          stage: "insert_sweep_results",
-          provider: "anthropic",
-          promptKey: prompt.key,
-          table: "ai_sweep_results",
-          insertedCount: inserted,
-          error: null,
+        const latencyMs = Date.now() - startedAt;
+        const unknownInfo = isUnknownResponse(responseText || "");
+        const expectList = shouldExpectList(prompt.key);
+        const extracted = extractSweepSignals({
+          responseText: responseText || "",
+          brandNames,
+          domains,
+          expectList,
         });
+        const learningExtract = extractLearningFields({
+          prompt: prompt.promptText,
+          response: responseText,
+        });
+        const finalErrorText = errorText ?? (extracted.parseFailed ? "parse_failed" : null);
+        const evaluationNotes = {
+          extraction_confidence: extracted.extractionConfidence,
+          reason_if_unknown: unknownInfo.reason,
+          ...(isCustomMode ? { prompt_group: "custom" } : {}),
+        };
+
+        attempted += 1;
+        const promptTemplate = isCustomMode ? prompt.template : prompt.promptText;
+        const { error: insertError } = await supabaseAdmin.from("ai_sweep_results").insert({
+          sweep_id: sweepId,
+          provider: "anthropic",
+          model,
+          prompt_key: prompt.key,
+          prompt: promptTemplate,
+          prompt_text: prompt.promptText,
+          response_text: responseText,
+          response_json: responseJson,
+          usage_json: usageJson,
+          error_text: finalErrorText,
+          latency_ms: latencyMs,
+          mentioned: extracted.mentioned,
+          mention_rank: extracted.mentionRank,
+          winner: extracted.winner,
+          alternatives: extracted.alternatives,
+          has_domain_mention: extracted.hasDomainMention,
+          has_brand_mention: extracted.hasBrandMention,
+          confidence: extracted.confidence,
+          evaluation_notes: evaluationNotes,
+          learning_signal: null,
+          learning_extract: learningExtract,
+        });
+        if (insertError) {
+          const error = normalizeSupabaseError(insertError);
+          logDebug({
+            debugId,
+            stage: "insert_sweep_results",
+            provider: "anthropic",
+            promptKey: prompt.key,
+            table: "ai_sweep_results",
+            error,
+            insertedCount: inserted,
+          });
+          failed += 1;
+          console.error("[sweep][anthropic] insert failed:", insertError);
+          if (!seenErrors.has(insertError.message)) {
+            errors.push(insertError.message);
+            seenErrors.add(insertError.message);
+          }
+          return NextResponse.json(
+            { ok: false, debugId, stage: "insert_sweep_results", error },
+            { status: 500 }
+          );
+        } else {
+          inserted += 1;
+          logDebug({
+            debugId,
+            stage: "insert_sweep_results",
+            provider: "anthropic",
+            promptKey: prompt.key,
+            table: "ai_sweep_results",
+            insertedCount: inserted,
+            error: null,
+          });
+        }
       }
     }
   }
@@ -473,6 +556,10 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     debugId,
+    mode: isCustomMode ? "custom" : "preset",
+    customPromptTemplate: isCustomMode ? body.customPromptTemplate!.trim() : null,
+    customPromptText: isCustomMode ? prompts[0].promptText : null,
+    runs: runsCount,
     sweepId,
     attempted,
     inserted,

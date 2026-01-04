@@ -1,0 +1,156 @@
+---
+title: "Why AI cannot justify citing websites it doesn't trust"
+description: "Why AI assistants avoid citing sites that lack visible legitimacy, access, and accountability signals."
+date: "2025-01-20"
+category: "AI recommendations"
+tldr:
+  - "AI assistants must justify the sources they cite."
+  - "Correct information is not enough without visible legitimacy."
+  - "Missing ownership, contact, or access signals increase risk."
+  - "Trust is inferred from structure, not reputation claims."
+  - "Recommendation-ready sites make legitimacy explicit."
+coreClaim: "AI assistants avoid citing sources they cannot justify as legitimate and accessible."
+---
+
+This article focuses on observable AI behavior when selecting sources to cite. It explains why AI assistants avoid websites that lack visible legitimacy and access signals, even when the content itself appears correct. The evaluation follows the [methodology](/methodology).
+
+<KeyIdea title="Key idea">
+  AI systems do not just look for correct answers. They look for answers they can defend. If an AI assistant cannot explain why a source is trustworthy, reachable, and appropriate to cite, it will choose another source that is easier to justify, even if both contain similar information.
+</KeyIdea>
+
+<Callout title="Jump to" variant="note">
+  - [What trust means for AI systems](#what-trust-means-for-ai-systems)
+  - [How AI justifies citing a source](#how-ai-justifies-citing-a-source)
+  - [Common legitimacy failures](#common-legitimacy-failures)
+  - [Recommendation-ready definition](#recommendation-ready-definition)
+  - [What to fix first](#what-to-fix-first)
+</Callout>
+
+<Section id="what-trust-means-for-ai-systems">
+
+## What "trust" means for AI systems
+
+For AI assistants, trust is not reputation in the human sense.
+
+It is not:
+
+- brand recognition
+- popularity
+- testimonials
+- authority claims
+
+Trust is inferred from visible, verifiable signals that allow an AI system to justify using the source inside an answer.
+
+If those signals are missing, the source becomes risky to cite.
+
+</Section>
+
+<Section id="how-ai-justifies-citing-a-source">
+
+## How AI justifies citing a source
+
+When an AI assistant includes a source, it implicitly needs to answer:
+
+- Who is responsible for this site?
+- Is it appropriate to cite this as a reference?
+- Can I explain where this information comes from?
+- Can the user verify or access it?
+
+These questions must be answerable using retrievable, on-page information.
+
+If justification requires guessing, the source is skipped.
+
+Missing trust signals often coincide with pages that [do not answer questions directly](/blog/why-ai-skips-websites-that-dont-answer-questions-directly).
+
+</Section>
+
+<Section id="common-legitimacy-failures" className="space-y-6">
+
+## Common legitimacy failures
+
+### 1. No clear ownership or organizational context
+
+The site does not state:
+
+- who operates it
+- what entity it represents
+- how responsibility is defined
+
+Anonymous or vague ownership reduces citation confidence.
+
+### 2. Missing or weak contact information
+
+If there is no clear way to:
+
+- contact the organization
+- identify accountability
+- verify presence
+
+AI systems hesitate to treat the site as a reliable reference.
+
+### 3. Access instability or blocking
+
+Sources that:
+
+- block crawlers
+- return inconsistent status codes
+- rely on heavy client-side rendering
+
+Are harder to retrieve reliably and therefore harder to justify citing.
+
+### 4. Claims without grounding
+
+Statements that assert authority or accuracy without visible grounding increase risk.
+
+AI systems prefer sources where legitimacy is shown, not claimed.
+
+</Section>
+
+<Section id="recommendation-ready-definition">
+
+## Recommendation-ready definition
+
+A website is recommendation-ready when an AI system can:
+
+- identify who is responsible for the content
+- verify organizational or ownership context
+- access pages reliably at fetch time
+- justify citing the source without speculation
+
+<Callout title="Checklist" variant="note">
+  - Clear About or Company information
+  - Visible ownership or organizational context
+  - Accessible contact information
+  - Stable, retrievable pages
+  - No reliance on implied legitimacy
+</Callout>
+
+</Section>
+
+<Section id="what-to-fix-first">
+
+## What to fix first
+
+If AI assistants hesitate to cite your site, start here:
+
+- Add clear ownership or company context
+- Make contact and accountability visible
+- Ensure pages are reliably accessible
+- Remove authority claims without grounding
+- Treat legitimacy as a visible signal, not a reputation
+
+Trust reduces the cost of justification.
+
+<Callout title="Next step" variant="note">
+  Want the diagnosis for your site? Run an analysis to see which missing signals create hesitation and what to fix first. [Analyze](/defaultanswer)
+</Callout>
+
+</Section>
+
+<Section>
+
+AI assistants do not avoid websites because they are wrong.
+
+They avoid websites because they are hard to justify safely.
+
+</Section>

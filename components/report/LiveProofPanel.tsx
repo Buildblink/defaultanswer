@@ -17,12 +17,12 @@ type LiveProofResult = {
 };
 
 type LiveProofPanelProps = {
-  isPro: boolean;
   evaluatedUrl: string;
   prompts: string[];
+  aiEnabled: boolean;
 };
 
-export function LiveProofPanel({ isPro, evaluatedUrl, prompts }: LiveProofPanelProps) {
+export function LiveProofPanel({ evaluatedUrl, prompts, aiEnabled }: LiveProofPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LiveProofResult | null>(null);
@@ -55,20 +55,6 @@ export function LiveProofPanel({ isPro, evaluatedUrl, prompts }: LiveProofPanelP
     }
   };
 
-  if (!isPro) {
-    return (
-      <Card title="Live Proof (Pro)">
-        <p>Run these prompts against a real model and see verbatim output.</p>
-        <a
-          href="/pricing"
-          className="mt-4 inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-900 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-50 dark:hover:bg-stone-900"
-        >
-          Unlock Live Proof
-        </a>
-      </Card>
-    );
-  }
-
   return (
     <Card title="Live Proof">
       <p className="text-sm text-stone-600 dark:text-stone-400">
@@ -78,11 +64,16 @@ export function LiveProofPanel({ isPro, evaluatedUrl, prompts }: LiveProofPanelP
         <button
           type="button"
           onClick={handleRun}
-          disabled={loading}
+          disabled={loading || !aiEnabled}
           className="inline-flex items-center justify-center rounded-2xl bg-stone-900 px-5 py-2 text-sm font-semibold text-stone-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800 disabled:opacity-60 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
         >
           {loading ? "Running..." : "Run Live Proof"}
         </button>
+        {!aiEnabled ? (
+          <span className="text-sm text-stone-500 dark:text-stone-400">
+            AI summary isn't available on this deployment.
+          </span>
+        ) : null}
         {error ? (
           <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
         ) : null}

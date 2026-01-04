@@ -1,0 +1,150 @@
+---
+title: "Why AI recommendations fail even when your site ranks #1"
+description: "A breakdown of the missing signals that stop AI assistants from citing high-ranking pages."
+date: "2025-01-10"
+category: "AI recommendations"
+tldr:
+  - "Search engines rank documents; AI assistants need sources they can quote and justify."
+  - "Sites get skipped when definitions, answers, or legitimacy signals are hard to extract."
+  - "Recommendation-ready means clear definition, self-contained answers, and visible legitimacy and access."
+coreClaim: "AI assistants do not choose the best page. They choose the easiest source to use inside an answer."
+---
+
+This article is intentionally limited to observable behavior and practical consequences. It does not rely on proprietary internals or speculative claims. For a related framing on description limits, see [cannot recommend what it cannot describe](/blog/why-ai-cannot-recommend-what-it-cannot-describe).
+
+<KeyIdea title="Key idea">
+  Search engines rank documents; AI systems generate answers. A website can rank highly and still be skipped if it is hard to describe, hard to quote, or hard to justify as a source.
+</KeyIdea>
+
+<Callout title="Jump to" variant="note">
+  - [Ranking is not recommending](#ranking-not-recommending)
+  - [Observable source selection patterns](#observable-source-selection-patterns)
+  - [Common failure patterns](#common-failure-patterns)
+  - [Recommendation-ready definition](#recommendation-ready-definition)
+  - [What to fix first](#what-to-fix-first)
+</Callout>
+
+<Section id="ranking-not-recommending">
+
+## Ranking is not recommending
+
+Many websites that rank at the top of search results are never mentioned by AI assistants.
+
+This is not a temporary gap, and it is not a failure of "AI SEO." It follows directly from how AI systems answer questions.
+
+<Callout title="Note" variant="note">
+  In practice, ranking well does not guarantee being recommended. AI systems do not ask, "Which page should I show?" They ask, implicitly, "Which source can I use to answer this question clearly and safely?"
+</Callout>
+
+- Relevance and authority can still coexist with uncertainty.
+- Summaries can be hard to form when definitions are unclear.
+- Sources can be skipped when justification is thin.
+
+</Section>
+
+<Section id="observable-source-selection-patterns">
+
+## Observable source selection patterns
+
+The internal mechanics of AI systems are proprietary. Their behavior is observable across common AI assistants. Several patterns are consistent.
+
+### Clear description
+
+Prefer sources that are easy to describe from visible definitions and offerings.
+
+### Extractable answers
+
+Favor extractable answers over comprehensive coverage or stitched-together sections.
+
+### Justifiable sources
+
+Avoid sources that require justification they cannot provide.
+
+### Retrievable content
+
+Use only content they can reliably retrieve at fetch time.
+
+</Section>
+
+<Section id="common-failure-patterns" className="space-y-6">
+
+## Common failure patterns
+
+When AI assistants avoid a website, it is rarely because the content is low quality. More often, the site creates uncertainty at the moment an answer must be formed.
+
+### 1. The website never clearly states what it is
+
+Many sites describe features and benefits without a clear declarative statement about the entity itself. This is about categorization.
+
+Typical symptom: The page explains what it does but never states what it is.
+
+### 2. Answers are spread across multiple sections or pages
+
+Content designed for exploration distributes information across long pages, secondary links, or interactive elements.
+
+Typical symptom: Answering a question requires assembling information from several places.
+
+### 3. Key information requires interpretation
+
+Sites that rely on implied meaning or marketing phrasing force interpretation rather than extraction. Interpretation introduces risk.
+
+Typical symptom: Important facts are implied rather than stated plainly.
+
+### 4. Commercial intent is unclear
+
+If pricing, plans, eligibility, or scope are unclear or hidden, the AI has fewer concrete facts to work with.
+
+Typical symptom: Pricing or access boundaries are unclear.
+
+### 5. Legitimacy signals are missing or hard to verify
+
+When a site lacks clear organizational context or contact information, it becomes harder to justify citing it.
+
+Typical symptom: No clear organizational context or contact information is visible.
+
+</Section>
+
+<Section id="recommendation-ready-definition">
+
+## Recommendation-ready definition
+
+A website is recommendation-ready when an AI system can:
+
+- Describe it clearly — what it is, who it is for, and what it offers can be stated directly.
+- Extract answers easily — common questions can be answered using visible, self-contained text.
+- Justify citing it — legitimacy and access signals are present and verifiable.
+
+<Callout title="Checklist" variant="note">
+  - A clear statement of what the site is.
+  - Direct, self-contained answers to common questions.
+  - Key information stated plainly, without interpretation.
+  - Explicit pricing, access, and scope boundaries.
+  - Visible organizational context and contact information.
+</Callout>
+
+</Section>
+
+<Section id="what-to-fix-first">
+
+## What to fix first
+
+In many cases, small changes remove disproportionate amounts of uncertainty. The goal is not to optimize everything. The goal is to reduce the moments where an AI system must guess.
+
+- Definition: Add a short, visible statement that answers what it is, who it is for, and what it does.
+- Self-contained answers: Ensure common questions have direct, extractable answers in one place.
+- Commercial clarity: Make pricing, access, and scope explicit so the AI has concrete facts to cite.
+- Legitimacy and access: Provide visible organizational context, contact information, and reliable access signals.
+
+<Callout title="Next step" variant="note">
+  Want the diagnosis for your site? Run an analysis to see which missing signals create hesitation and what to fix first. [Analyze](/defaultanswer)
+</Callout>
+
+</Section>
+
+<Section>
+
+AI recommendation is not about gaming a system. It is about being understandable under constraint.
+
+Websites that are clear, explicit, answerable, legitimate, and retrievable are easier for AI systems to use.
+
+</Section>

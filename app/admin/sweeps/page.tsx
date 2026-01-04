@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 type SweepRow = {
   id: string;
@@ -48,6 +49,10 @@ type ResultsResponse = {
 type RunSummary = {
   ok: boolean;
   debugId: string;
+  mode?: string | null;
+  customPromptTemplate?: string | null;
+  customPromptText?: string | null;
+  runs?: number | null;
   sweepId: string;
   attempted: number;
   inserted: number;
@@ -90,10 +95,14 @@ export default function AdminSweepsPage() {
   const [category, setCategory] = useState("LLM recommendation readiness audit for websites/brands");
   const [brandName, setBrandName] = useState("DefaultAnswer");
   const [domain, setDomain] = useState("defaultanswer.com");
+  const [useCase, setUseCase] = useState("");
   const [useOpenAi, setUseOpenAi] = useState(true);
   const [useAnthropic, setUseAnthropic] = useState(true);
   const [limitPrompts, setLimitPrompts] = useState(15);
   const [preset, setPreset] = useState("default");
+  const [modelOverride, setModelOverride] = useState("");
+  const [customPromptTemplate, setCustomPromptTemplate] = useState("");
+  const [customRuns, setCustomRuns] = useState(1);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +183,15 @@ export default function AdminSweepsPage() {
     }
   }
 
+  async function parseRunResponse(res: Response) {
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return (await res.json()) as RunSummary | Record<string, unknown>;
+    }
+    const text = await res.text();
+    return { ok: false, error: { message: text.slice(0, 400) } };
+  }
+
   async function runSweep() {
     if (!token) {
       setError("Admin token required.");
@@ -197,11 +215,12 @@ export default function AdminSweepsPage() {
           providers: { openai: useOpenAi, anthropic: useAnthropic },
           limitPrompts,
           preset: preset === "default" ? undefined : preset,
+          model: modelOverride || undefined,
         }),
       });
-      const json = (await res.json()) as RunSummary | Record<string, unknown>;
-      if (!res.ok) {
-        const errorPayload = json as {
+      const payload = await parseRunResponse(res);
+      if (!res.ok || payload?.ok === false) {
+        const errorPayload = payload as {
           debugId?: string;
           stage?: string;
           error?: { message?: string } | string;
@@ -209,12 +228,68 @@ export default function AdminSweepsPage() {
         const message =
           typeof errorPayload.error === "string"
             ? errorPayload.error
-            : errorPayload.error?.message || "Sweep failed.";
+            : errorPayload.error?.message || `Request failed: ${res.status}`;
         setDebugInfo(errorPayload as Record<string, unknown>);
         setRunSummary(null);
         throw new Error(message);
       }
-      setRunSummary(json as RunSummary);
+      setRunSummary(payload as RunSummary);
+      await loadLatest(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sweep failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function runCustomPrompt() {
+    if (!token) {
+      setError("Admin token required.");
+      return;
+    }
+    if (!customPromptTemplate.trim()) {
+      setError("Custom prompt template required.");
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    setDebugInfo(null);
+    try {
+      const res = await fetch("/api/admin/sweep/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({
+          mode: "custom",
+          label,
+          category,
+          brandName,
+          domain,
+          useCase,
+          runs: customRuns,
+          customPromptTemplate,
+          providers: { openai: useOpenAi, anthropic: useAnthropic },
+          modelOverrides: modelOverride ? { model: modelOverride } : undefined,
+        }),
+      });
+      const payload = await parseRunResponse(res);
+      if (!res.ok || payload?.ok === false) {
+        const errorPayload = payload as {
+          debugId?: string;
+          stage?: string;
+          error?: { message?: string } | string;
+        };
+        const message =
+          typeof errorPayload.error === "string"
+            ? errorPayload.error
+            : errorPayload.error?.message || `Request failed: ${res.status}`;
+        setDebugInfo(errorPayload as Record<string, unknown>);
+        setRunSummary(null);
+        throw new Error(message);
+      }
+      setRunSummary(payload as RunSummary);
       await loadLatest(token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sweep failed.");
@@ -309,6 +384,10 @@ export default function AdminSweepsPage() {
               <Input value={domain} onChange={(event) => setDomain(event.target.value)} />
             </div>
             <div className="space-y-1">
+              <label className="text-sm font-medium">Use case</label>
+              <Input value={useCase} onChange={(event) => setUseCase(event.target.value)} />
+            </div>
+            <div className="space-y-1">
               <label className="text-sm font-medium">Prompt limit</label>
               <Input
                 type="number"
@@ -322,6 +401,10 @@ export default function AdminSweepsPage() {
               />
             </div>
             <div className="space-y-1">
+              <label className="text-sm font-medium">Model override (optional)</label>
+              <Input value={modelOverride} onChange={(event) => setModelOverride(event.target.value)} />
+            </div>
+            <div className="space-y-1">
               <label className="text-sm font-medium">Preset</label>
               <select
                 value={preset}
@@ -333,6 +416,29 @@ export default function AdminSweepsPage() {
                 <option value="learning_confidence_gate_v1">Learning: confidence gate (1 prompt)</option>
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Custom runs (1-5)</label>
+              <Input
+                type="number"
+                min={1}
+                max={5}
+                value={customRuns}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  const capped = Number.isFinite(next) ? Math.min(Math.max(next, 1), 5) : 1;
+                  setCustomRuns(capped);
+                }}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Custom prompt template</label>
+            <Textarea
+              value={customPromptTemplate}
+              onChange={(event) => setCustomPromptTemplate(event.target.value)}
+              placeholder="Use {{BRAND_NAME}}, {{DOMAIN}}, {{CATEGORY}}, {{USE_CASE}}"
+              rows={5}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <label className="flex items-center gap-2">
@@ -345,6 +451,15 @@ export default function AdminSweepsPage() {
             </label>
             <Button onClick={runSweep} disabled={running || !token || (!useOpenAi && !useAnthropic)}>
               {running ? "Running sweep..." : "Run sweep now"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={runCustomPrompt}
+              disabled={
+                running || !token || (!useOpenAi && !useAnthropic) || !customPromptTemplate.trim()
+              }
+            >
+              {running ? "Running sweep..." : "Run Custom Prompt"}
             </Button>
             <Button
               variant="outline"
@@ -380,12 +495,27 @@ export default function AdminSweepsPage() {
             )}
           </div>
           {runSummary && (
-            <div className="text-sm">
-              Inserted {runSummary.inserted}/{runSummary.attempted}
-              {runSummary.inserted === 0 && (
-                <span className="ml-2 text-red-500">
-                  No results stored (check DB/RLS/service role)
-                </span>
+            <div className="space-y-2 text-sm">
+              <div>
+                Inserted {runSummary.inserted}/{runSummary.attempted}
+                {runSummary.inserted === 0 && (
+                  <span className="ml-2 text-red-500">
+                    No results stored (check DB/RLS/service role)
+                  </span>
+                )}
+              </div>
+              {runSummary.customPromptText && (
+                <div className="space-y-2">
+                  <div className="text-xs uppercase text-muted-foreground">Custom prompt used</div>
+                  <Textarea readOnly value={runSummary.customPromptText} rows={4} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(runSummary.customPromptText || "")}
+                  >
+                    Copy custom prompt
+                  </Button>
+                </div>
               )}
             </div>
           )}

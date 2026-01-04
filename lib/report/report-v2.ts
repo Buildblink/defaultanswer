@@ -9,6 +9,7 @@ import {
 import { buildLiveProofPromptBuckets, resolveLiveProofCategory } from "@/lib/report/liveproof-prompts";
 
 export type ReportV2 = {
+  analysis: AnalysisResult;
   aiProof: {
     prompt: string;
     response: string;
@@ -72,6 +73,20 @@ export type ReportV2 = {
     citableSentences: string[];
     whyCitable: string[];
   };
+  visibilityAnalysis: {
+    primaryBlocker: string;
+    gaps: VisibilityGap[];
+    competitors: string[];
+    fixRecommendation: string;
+    showPositive: boolean;
+  };
+};
+
+export type VisibilityGap = {
+  category: string;
+  signal: string;
+  impact: string;
+  severity: "critical" | "high" | "medium" | "low";
 };
 
 type CategoryScore = { points: number; max: number };
@@ -243,7 +258,21 @@ export function buildReportV2(analysis: AnalysisResult, opts?: ReportV2Options):
       }
     : { citableSentences: [], whyCitable: [] };
 
+  const gaps = buildVisibilityGaps(analysis);
+  const competitors = buildMonitoringCompetitors(gaps);
+  const fixRecommendation = analysis.fixPlan?.[0]?.action || coverage.nextMove;
+  const visibilityPrimaryBlocker = aiProof[0]?.primaryBlocker || primaryGapCategory || "Multiple small gaps reduce overall visibility";
+
+  const visibilityAnalysis = {
+    primaryBlocker: visibilityPrimaryBlocker,
+    gaps,
+    competitors,
+    fixRecommendation,
+    showPositive: analysis.score >= 75 && coverage.overall >= 70,
+  };
+
   return {
+    analysis,
     aiProof,
     reasoning,
     retrieveVsInfer,
@@ -255,6 +284,7 @@ export function buildReportV2(analysis: AnalysisResult, opts?: ReportV2Options):
     rightNow,
     sharePack,
     citationReadiness,
+    visibilityAnalysis,
   };
 }
 
@@ -342,6 +372,170 @@ function buildGapSignals(analysis: AnalysisResult): string[] {
     extracted.h2s.length < 3 ? "section structure is thin" : "",
   ];
   return uniq(gaps).filter(Boolean).slice(0, 4);
+}
+
+/**
+ * Helper to extract where a signal was found from evidence
+ */
+function getSignalLocation(evidence?: string[]): { foundOnHomepage: boolean; foundOnOtherPages: string[] } {
+  if (!evidence || evidence.length === 0) {
+    return { foundOnHomepage: false, foundOnOtherPages: [] };
+  }
+
+  const foundPages: string[] = [];
+  let foundOnHomepage = false;
+
+  for (const item of evidence) {
+    const match = item.match(/Found on: (.+)/i);
+    if (match) {
+      const pages = match[1].split(',').map(p => p.trim());
+      for (const page of pages) {
+        if (page === 'homepage') {
+          foundOnHomepage = true;
+        } else {
+          foundPages.push(page);
+        }
+      }
+    }
+  }
+
+  return { foundOnHomepage, foundOnOtherPages: foundPages };
+}
+
+function buildVisibilityGaps(analysis: AnalysisResult): VisibilityGap[] {
+  const gaps: VisibilityGap[] = [];
+  const extracted = analysis.extracted;
+  const evidence = extracted.evidence;
+
+  // Priority order: Pricing → FAQ → Schema → Contact → Structure
+
+  // PRICING
+  if (!extracted.hasPricing) {
+    gaps.push({
+      category: "Commercial Clarity",
+      signal: "Pricing information",
+      impact: "No pricing information found at common paths (/pricing, /plans) or homepage",
+      severity: "high",
+    });
+  } else if (evidence?.pricingEvidence) {
+    const location = getSignalLocation(evidence.pricingEvidence);
+    if (!location.foundOnHomepage && location.foundOnOtherPages.length > 0) {
+      const pages = location.foundOnOtherPages.join(', ');
+      gaps.push({
+        category: "Commercial Clarity",
+        signal: "Pricing information",
+        impact: `Pricing exists at ${pages} but not visible on homepage — reduces citation confidence for commercial queries`,
+        severity: "medium",
+      });
+    }
+  }
+
+  // FAQ
+  if (!extracted.hasFAQ && !extracted.hasDirectAnswerBlock) {
+    gaps.push({
+      category: "Answerability Signals",
+      signal: "Direct answers or FAQ",
+      impact: "No FAQ section detected on homepage or common paths",
+      severity: "high",
+    });
+  } else if (extracted.hasFAQ && evidence?.faqEvidence) {
+    // Check if FAQ is only on separate page
+    const faqLinks = evidence.faqEvidence.indirectFaqLinks || [];
+    const faqLocation = faqLinks.find(link => link.includes('FAQ found on:'));
+    if (faqLocation) {
+      const match = faqLocation.match(/FAQ found on: (.+)/i);
+      if (match) {
+        const pages = match[1].split(',').map(p => p.trim());
+        const onlyOnOtherPages = pages.every(p => p !== 'homepage');
+        if (onlyOnOtherPages) {
+          gaps.push({
+            category: "Answerability Signals",
+            signal: "FAQ section",
+            impact: `FAQ section exists at ${pages.join(', ')} but not linked from homepage navigation`,
+            severity: "medium",
+          });
+        }
+      }
+    }
+  }
+
+  // SCHEMA
+  if (!extracted.hasSchemaJsonLd) {
+    gaps.push({
+      category: "Entity Clarity",
+      signal: "Structured data (schema.org)",
+      impact: "Monitoring tools can't confidently classify your entity type",
+      severity: "medium",
+    });
+  }
+
+  // CONTACT & ABOUT
+  if (!extracted.hasContactSignals && !extracted.hasAbout) {
+    gaps.push({
+      category: "Trust & Legitimacy",
+      signal: "Contact and about information",
+      impact: "No contact or about page found at any common path",
+      severity: "medium",
+    });
+  } else if (!extracted.hasContactSignals) {
+    gaps.push({
+      category: "Trust & Legitimacy",
+      signal: "Contact information",
+      impact: "No contact page found at common paths (/contact, /contact-us, /support)",
+      severity: "medium",
+    });
+  } else if (!extracted.hasAbout) {
+    gaps.push({
+      category: "Trust & Legitimacy",
+      signal: "About information",
+      impact: "No about page found at common paths (/about, /about-us, /company)",
+      severity: "low",
+    });
+  } else if (evidence?.contactEvidence || evidence?.aboutEvidence) {
+    // Check if contact/about are only on separate pages
+    const contactLocation = getSignalLocation(evidence.contactEvidence);
+    if (!contactLocation.foundOnHomepage && contactLocation.foundOnOtherPages.length > 0) {
+      const pages = contactLocation.foundOnOtherPages.join(', ');
+      gaps.push({
+        category: "Trust & Legitimacy",
+        signal: "Contact information",
+        impact: `Contact page exists at ${pages} but not visible on homepage`,
+        severity: "low",
+      });
+    }
+  }
+
+  if (extracted.h2s.length < 3) {
+    gaps.push({
+      category: "Structural Comprehension",
+      signal: "Descriptive section headings",
+      impact: "Tools struggle to parse page structure and extract key features",
+      severity: "low",
+    });
+  }
+
+  return gaps.slice(0, 4);
+}
+
+function buildMonitoringCompetitors(gaps: VisibilityGap[]): string[] {
+  return gaps
+    .map((gap) => {
+      switch (gap.category) {
+        case "Commercial Clarity":
+          return "Sites with visible pricing and plan comparison tables";
+        case "Answerability Signals":
+          return "Sites with structured FAQ sections and direct answers";
+        case "Entity Clarity":
+          return "Sites with schema.org markup and explicit category definitions";
+        case "Trust & Legitimacy":
+          return "Sites with clear about pages and contact information";
+        case "Structural Comprehension":
+          return "Sites with clear H2 section structure and feature lists";
+        default:
+          return "Sites with more explicit, retrievable signals";
+      }
+    })
+    .slice(0, 3);
 }
 
 function buildSkipReason(primaryGapCategory: string, status: string): string {

@@ -36,10 +36,48 @@ export function ReportRenderer({ reportData, analysis, children }: ReportRendere
   return <>{children({ reportV2 })}</>;
 }
 
+export function ReportRightNowSection({ reportV2 }: { reportV2?: ReportV2 }) {
+  if (!reportV2) return null;
+  return (
+    <CollapsibleSection id="right-now" title="Right now" defaultOpen>
+      <Card>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div>
+            <div className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              You would be recommended for
+            </div>
+            <ul className="mt-3 list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
+              {reportV2.rightNow.recommended.length > 0 ? (
+                reportV2.rightNow.recommended.map((prompt) => <li key={prompt}>{prompt}</li>)
+              ) : (
+                <li>No prompts confidently recommend you yet.</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              You would be skipped for
+            </div>
+            <ul className="mt-3 list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
+              {reportV2.rightNow.skipped.length > 0 ? (
+                reportV2.rightNow.skipped.map((prompt) => <li key={prompt}>{prompt}</li>)
+              ) : (
+                <li>No prompts confidently skip you yet.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+        <p className="mt-4 text-sm text-stone-600 dark:text-stone-400">
+          {reportV2.rightNow.reason}
+        </p>
+      </Card>
+    </CollapsibleSection>
+  );
+}
+
 export function ReportV2Sections({
   reportV2,
   reportId,
-  isPro,
   evaluatedUrl,
   brandName,
   domain,
@@ -48,10 +86,10 @@ export function ReportV2Sections({
   defaultLiveProofCategory,
   coldSummarySnapshot,
   coldSummaryExistingSignals,
+  aiEnabled,
 }: {
   reportV2?: ReportV2;
   reportId: string;
-  isPro: boolean;
   evaluatedUrl: string;
   brandName: string;
   domain: string;
@@ -60,6 +98,7 @@ export function ReportV2Sections({
   defaultLiveProofCategory: string;
   coldSummarySnapshot?: ColdSummarySnapshot;
   coldSummaryExistingSignals?: ColdSummaryExistingSignals;
+  aiEnabled: boolean;
 }) {
   if (!reportV2) return null;
 
@@ -71,41 +110,6 @@ export function ReportV2Sections({
 
   return (
     <>
-      {/* Right now */}
-      <CollapsibleSection id="right-now" title="Right now" defaultOpen>
-        <Card>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <div className="text-sm font-semibold text-stone-800 dark:text-stone-200">
-                You would be recommended for
-              </div>
-              <ul className="mt-3 list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
-                {reportV2.rightNow.recommended.length > 0 ? (
-                  reportV2.rightNow.recommended.map((prompt) => <li key={prompt}>{prompt}</li>)
-                ) : (
-                  <li>No prompts confidently recommend you yet.</li>
-                )}
-              </ul>
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-stone-800 dark:text-stone-200">
-                You would be skipped for
-              </div>
-              <ul className="mt-3 list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
-                {reportV2.rightNow.skipped.length > 0 ? (
-                  reportV2.rightNow.skipped.map((prompt) => <li key={prompt}>{prompt}</li>)
-                ) : (
-                  <li>No prompts confidently skip you yet.</li>
-                )}
-              </ul>
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-stone-600 dark:text-stone-400">
-            {reportV2.rightNow.reason}
-          </p>
-        </Card>
-      </CollapsibleSection>
-
       {/* Cold AI understanding */}
       <CollapsibleSection
         id="cold-ai-summary"
@@ -118,6 +122,7 @@ export function ReportV2Sections({
           model={defaultModel}
           snapshot={coldSummarySnapshot}
           existingSignals={coldSummaryExistingSignals}
+          aiEnabled={aiEnabled}
         />
       </CollapsibleSection>
 
@@ -168,87 +173,117 @@ export function ReportV2Sections({
           id="live-proof"
           title="Live Proof (Mention Check)"
           subtitle="Run real-model prompts and detect whether the brand is actually mentioned."
-          defaultOpen
           badgeRow={<Pill>{mentionStatus}</Pill>}
         >
           <div className="mt-4">
             <MentionCheckPanel
-              isPro={isPro}
               brand={brandName}
               domain={domain}
               defaultCategory={defaultLiveProofCategory || categoryLabel}
               defaultModel={defaultModel}
+              aiEnabled={aiEnabled}
             />
           </div>
         </CollapsibleSection>
       )}
 
-      {/* 2) What AI recommends instead */}
-      {reportV2.aiProof.length > 0 && (
-        <CollapsibleSection
-          id="ai-proof"
-          title="What AI recommends instead of you (Simulated)"
-          subtitle="Simulated examples based on retrievable signals in this snapshot."
-          badgeRow={primaryBlocker ? <Pill>Primary blocker: {primaryBlocker}</Pill> : undefined}
-        >
-          <div className="mt-4">
-            <LiveProofPanel isPro={isPro} evaluatedUrl={evaluatedUrl} prompts={reportV2.aiProof.map((p) => p.prompt)} />
-          </div>
-          <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
-            Simulated examples to illustrate observable behavior. For real model outputs, enable Live Proof in settings.
-          </p>
+      {/* 2) Visibility Analysis - replaces "What AI recommends instead" */}
+      <section id="visibility-gaps" className="mb-10 scroll-mt-28">
+        <div className="rounded-2xl border border-stone-200 bg-white px-5 py-6 shadow-sm dark:border-stone-800 dark:bg-stone-950">
+          <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-50">
+            Why monitoring tools show low visibility
+          </h3>
           <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-            Model-free verdicts below approximate citation readiness without model calls.
+            Based on actual gaps detected in your current snapshot
           </p>
-          <div className="mt-4 space-y-4">
-            {reportV2.aiProof.map((proof, idx) => (
-              <Card key={`${proof.modelLabel}-${idx}`}>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                  {proof.modelLabel}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-800 dark:text-stone-200">
-                  <span>Prompt</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      proof.verdict === "would-mention"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-                        : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200"
-                    }`}
-                  >
-                    {proof.verdict === "would-mention" ? "Would mention" : "Would skip"}
-                  </span>
-                  <span className="text-xs font-normal text-stone-500 dark:text-stone-400">
-                    {proof.confidence}% confidence
-                  </span>
-                </div>
-                <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-800 dark:bg-stone-900 dark:text-stone-200">
-{proof.prompt}
-                </pre>
-                <div className="mt-3 text-sm font-semibold text-stone-800 dark:text-stone-200">Simulated response</div>
-                <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-800 dark:bg-stone-900 dark:text-stone-200">
-{proof.response}
-                </pre>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {proof.recommended.map((label) => (
-                    <Pill key={label}>{label}</Pill>
-                  ))}
-                </div>
-                <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
-                  {proof.mentionsYou
-                    ? "You are mentioned as a viable option in this simulated answer."
-                    : `You are not mentioned. ${proof.skipReason || ""}`.trim()}
-                </p>
-                <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-                  So what: {proof.soWhat}
-                </p>
-                <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-                  Primary blocker: {proof.primaryBlocker}
-                </p>
-              </Card>
-            ))}
+
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-sm font-semibold text-stone-700 dark:text-stone-300">
+              Primary blocker:
+            </span>
+            <Pill>{reportV2.visibilityAnalysis.primaryBlocker}</Pill>
           </div>
-        </CollapsibleSection>
-      )}
+
+          {/* Signal detection summary */}
+          <div className="mt-6 rounded-lg bg-stone-50 p-4 dark:bg-stone-900/40">
+            <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              Signal Detection Summary
+            </h4>
+            <div className="mt-3 space-y-2 text-xs text-stone-600 dark:text-stone-400">
+              <SignalDetectionStatus
+                signal="Pricing"
+                found={reportV2.analysis.extracted.hasPricing}
+                evidence={reportV2.analysis.extracted.evidence?.pricingEvidence}
+              />
+              <SignalDetectionStatus
+                signal="FAQ"
+                found={reportV2.analysis.extracted.hasFAQ}
+                evidence={reportV2.analysis.extracted.evidence?.faqEvidence?.indirectFaqLinks}
+              />
+              <SignalDetectionStatus
+                signal="Contact"
+                found={reportV2.analysis.extracted.hasContactSignals}
+                evidence={reportV2.analysis.extracted.evidence?.contactEvidence}
+              />
+              <SignalDetectionStatus
+                signal="About"
+                found={reportV2.analysis.extracted.hasAbout}
+                evidence={reportV2.analysis.extracted.evidence?.aboutEvidence}
+              />
+              <SignalDetectionStatus
+                signal="Schema"
+                found={reportV2.analysis.extracted.hasSchemaJsonLd}
+                evidence={reportV2.analysis.extracted.evidence?.schemaTypes}
+              />
+            </div>
+          </div>
+
+          {reportV2.visibilityAnalysis.gaps.length > 0 && (
+            <div className="mt-6 space-y-4">
+              {reportV2.visibilityAnalysis.gaps.map((gap) => (
+                <Card key={gap.category}>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+                      {gap.category}
+                    </h4>
+                    <SeverityBadge level={gap.severity} />
+                  </div>
+                  <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
+                    <span className="font-medium">Missing:</span> {gap.signal}
+                  </p>
+                  <p className="mt-2 text-sm text-stone-700 dark:text-stone-300">
+                    {gap.impact}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {reportV2.visibilityAnalysis.competitors.length > 0 && (
+            <div className="mt-6">
+              <Card>
+                <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+                  Who appears in monitoring tools instead
+                </h4>
+                <ul className="mt-3 list-disc list-inside space-y-2 text-sm text-stone-700 dark:text-stone-300">
+                  {reportV2.visibilityAnalysis.competitors.map((comp) => (
+                    <li key={comp}>{comp}</li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          )}
+
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm dark:border-amber-900 dark:bg-amber-900/20">
+            <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              Next step to improve visibility
+            </h4>
+            <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">
+              {reportV2.visibilityAnalysis.fixRecommendation}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* 2) Reasoning simulation */}
       {reportV2.reasoning.steps.length > 0 && (
@@ -520,4 +555,62 @@ function StatusPill({ level }: { level: "Low" | "Medium" | "High" }) {
       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
       : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200";
   return <span className={`inline-flex rounded-xl px-2 py-0.5 text-xs font-semibold ${className}`}>{level}</span>;
+}
+
+function SeverityBadge({ level }: { level: "critical" | "high" | "medium" | "low" }) {
+  const className =
+    level === "critical"
+      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200"
+      : level === "high"
+      ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200"
+      : level === "medium"
+      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+      : "bg-stone-100 text-stone-700 dark:bg-stone-800/40 dark:text-stone-300";
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${className}`}>
+      {level}
+    </span>
+  );
+}
+
+function SignalDetectionStatus({
+  signal,
+  found,
+  evidence
+}: {
+  signal: string;
+  found: boolean;
+  evidence?: string[]
+}) {
+  // Extract location from evidence
+  let location = "Not detected on any scanned pages";
+
+  if (found && evidence && evidence.length > 0) {
+    for (const item of evidence) {
+      const match = item.match(/Found on: (.+)/i) || item.match(/FAQ found on: (.+)/i);
+      if (match) {
+        location = `Detected on: ${match[1]}`;
+        break;
+      }
+    }
+    // If found but no location info, assume homepage
+    if (location === "Not detected on any scanned pages") {
+      location = "Detected on: Homepage";
+    }
+  }
+
+  const icon = found ? "✓" : "✗";
+  const iconColor = found ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+
+  return (
+    <div className="flex items-start gap-2">
+      <span className={`${iconColor} font-bold`}>{icon}</span>
+      <div className="flex-1">
+        <span className="font-medium">{signal}:</span>{" "}
+        <span className={found ? "text-stone-700 dark:text-stone-300" : "text-stone-500 dark:text-stone-500"}>
+          {location}
+        </span>
+      </div>
+    </div>
+  );
 }

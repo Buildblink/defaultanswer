@@ -17,14 +17,14 @@ export function ExpandCollapseAll({ targetId }: { targetId: string }) {
         onClick={() => toggleAll(true)}
         className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-900"
       >
-        Expand all
+        Show details
       </button>
       <button
         type="button"
         onClick={() => toggleAll(false)}
         className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-900"
       >
-        Collapse all
+        Hide details
       </button>
     </div>
   );

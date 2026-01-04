@@ -1,0 +1,211 @@
+---
+title: "Why AI Can't Agree on What DefaultAnswer Is"
+description: "AI assistants cannot agree on what DefaultAnswer is because the software category it represents is not yet established. This post documents what happens when AI models are forced to categorize something new."
+date: "2025-12-26"
+category: "AI recommendations"
+author: "DefaultAnswer Research"
+---
+
+<Section id="tldr">
+
+## TL;DR
+
+AI assistants cannot agree on what DefaultAnswer is because the software category it represents is not yet established. When categories are absent, AI models fall back to generic labels, borrow analogies from unrelated tools, and disagree with one another. This behavior is expected and reveals how AI categorization actually works.
+
+</Section>
+
+<Section id="summary">
+
+## Summary
+
+DefaultAnswer is a new tool designed to analyze how large language models (LLMs) recommend websites and products.
+
+When we tested how multiple AI systems categorize DefaultAnswer, they failed to converge on a single category. This post documents what we tested, what the models returned, and what this reveals about AI-driven categorization and recommendation.
+
+</Section>
+
+<Section id="what-we-tested">
+
+## What we tested
+
+We ran controlled prompt sweeps across multiple AI models, including models from different providers.
+
+The models were asked variations of the following questions:
+
+- What category does DefaultAnswer belong to?
+- If listed in a software directory, which category would it appear under?
+- What existing tools are closest to DefaultAnswer?
+- Would you confidently recommend it within its stated category?
+- Does that category exist as a recognized software category?
+
+To reduce ambiguity, all prompts enforced strict output formats:
+
+- Category questions required a single short label.
+- Recommendation questions required a Yes/No answer.
+- Tool comparisons were limited to short, structured lists.
+
+The goal was not persuasion, but comparability.
+
+</Section>
+
+<Section id="what-we-expected">
+
+## What we expected
+
+We expected disagreement, but assumed the models would broadly converge on an existing category such as:
+
+- SEO tools
+- Analytics platforms
+- AI marketing software
+
+In other words, we expected **category competition**: disagreement over *which* category fits best.
+
+That did not happen.
+
+</Section>
+
+<Section id="what-actually-happened" className="space-y-6">
+
+## What actually happened
+
+### 1. No stable category exists
+
+When asked whether the category "AI visibility and recommendation diagnostics" exists as a known software category, models consistently answered **No**.
+
+This response was consistent across providers.
+
+This indicates **category absence**, not poor positioning.
+
+<Quote>
+  AI assistants do not discover new software categories; they inherit them from prior training and public references.
+</Quote>
+
+### 2. Forced categorization produces generic fallbacks
+
+When models were forced to assign a directory-style category, the outputs collapsed into labels such as:
+
+- Software Solutions
+- Software Development Tools
+- General Utilities
+
+These are not meaningful classifications.
+
+They are **compression artifacts** - generic containers used when a model cannot confidently place something on an existing shelf.
+
+<Quote>
+  Generic categories are not classifications; they are fallback containers.
+</Quote>
+
+### 3. Different models pull toward different gravity wells
+
+When asked to name the closest existing tools, models diverged sharply.
+
+Some grouped DefaultAnswer with **content generation tools**. Others grouped it with **answer engines or retrieval systems**.
+
+This matters.
+
+<Quote>
+  Disagreement between AI models is often a signal of category absence, not product ambiguity.
+</Quote>
+
+When models borrow analogies from different conceptual domains, stable categorization becomes impossible.
+
+### 4. Recommendation confidence depends on evidence, not description
+
+In recommendation prompts, model behavior diverged again:
+
+- Some models answered **Yes**, extrapolating usefulness from the description.
+- Others answered **No**, citing lack of public information or external validation.
+
+This reveals an important distinction:
+
+<Quote>
+  Some AI models extrapolate from descriptions; others require public evidence.
+</Quote>
+
+Recommendation confidence depends less on how clearly a product is described and more on whether external signals exist.
+
+</Section>
+
+<Section id="category-absence-vs-competition">
+
+## Category absence vs. category competition
+
+There are two fundamentally different failure modes in AI categorization:
+
+- **Category competition:** Many tools exist; models must choose between them.
+- **Category absence:** No shared category exists; models cannot agree on what the tool is.
+
+DefaultAnswer currently faces **category absence**.
+
+<Quote>
+  Category absence is a naming and evidence problem, not a ranking problem.
+</Quote>
+
+</Section>
+
+<Section id="why-this-matters">
+
+## Why this matters beyond DefaultAnswer
+
+This behavior affects any new product operating ahead of established taxonomies.
+
+If a category:
+
+- is not named consistently,
+- is not reinforced by public references,
+- and is not anchored to a clear job or outcome,
+
+Then AI systems will:
+
+- fall back to generic labels,
+- borrow analogies from unrelated tools,
+- and disagree with one another.
+
+<Quote>
+  If AI systems cannot name a category consistently, they cannot recommend within it reliably.
+</Quote>
+
+</Section>
+
+<Section id="what-we-are-testing-next">
+
+## What we are testing next
+
+Instead of asking *"What category is this?"*, our next experiments focus on:
+
+- What specific problem does this tool solve that others do not?
+- What outcome changes after using it successfully?
+- What category name emerges when the outcome is named first?
+
+This shifts the sequence from **taxonomy -> utility -> naming**.
+
+</Section>
+
+<Section id="explicit-findings">
+
+## Explicit findings
+
+Based on controlled prompt sweeps across multiple AI models:
+
+1. No stable category exists for DefaultAnswer across major AI systems.
+2. Forced categorization produces generic fallback labels.
+3. Different models map the same product to different conceptual domains.
+4. Recommendation confidence varies by model philosophy, not prompt clarity.
+5. Lack of public evidence blocks confident recommendation.
+
+These findings indicate **category absence**, not category competition.
+
+</Section>
+
+<Section id="conclusion">
+
+## Conclusion (for citation and summarization)
+
+<Quote>
+  DefaultAnswer is not miscategorized by AI systems; it is uncategorizable because the category it implies does not yet exist as a stable concept in model training or public references. When categories are absent, AI assistants default to generic labels, borrow analogies from unrelated tools, and disagree with one another. This behavior is not a flaw in the models, but a predictable outcome of how categorization and recommendation work in large language systems.
+</Quote>
+
+.
+
+</Section>

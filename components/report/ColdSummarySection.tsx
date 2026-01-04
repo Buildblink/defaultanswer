@@ -27,6 +27,7 @@ type ColdSummarySectionProps = {
   model: string;
   snapshot?: ColdSummarySnapshot;
   existingSignals?: ColdSummaryExistingSignals;
+  aiEnabled: boolean;
 };
 
 export function ColdSummarySection({
@@ -35,6 +36,7 @@ export function ColdSummarySection({
   model,
   snapshot,
   existingSignals,
+  aiEnabled,
 }: ColdSummarySectionProps) {
   const [mode, setMode] = useState<ColdSummaryMode>("url_only");
   const [singleRun, setSingleRun] = useState<ColdSummaryResult | null>(null);
@@ -192,7 +194,7 @@ export function ColdSummarySection({
         <button
           type="button"
           onClick={() => runTest(1)}
-          disabled={loading || !evaluatedUrl}
+          disabled={loading || !evaluatedUrl || !aiEnabled}
           className="inline-flex items-center justify-center rounded-2xl bg-stone-900 px-4 py-2 text-xs font-semibold text-stone-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800 disabled:opacity-60 dark:bg-stone-50 dark:text-stone-900 dark:hover:bg-stone-200"
         >
           {loading ? "Running..." : "Run cold AI summary test"}
@@ -200,11 +202,16 @@ export function ColdSummarySection({
         <button
           type="button"
           onClick={() => runTest(3)}
-          disabled={loading || !evaluatedUrl}
+          disabled={loading || !evaluatedUrl || !aiEnabled}
           className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2 text-xs font-semibold text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-100 disabled:opacity-60 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-900"
         >
           Run 3x (consistency check)
         </button>
+        {!aiEnabled ? (
+          <span className="text-xs text-stone-500 dark:text-stone-400">
+            AI summary isn't available on this deployment.
+          </span>
+        ) : null}
         {latestAnalysis ? (
           <Pill>
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${verdictClass}`}>

@@ -58,7 +58,10 @@ export function HeroForm({
 
       const data = await analyzeRes.json();
 
-      if (data.analysis) {
+      // Prefer clean URL if available, fallback to old format
+      if (data.reportUrl) {
+        router.push(data.reportUrl);
+      } else if (data.analysis) {
         const analysisB64 = btoa(encodeURIComponent(JSON.stringify(data.analysis)));
         router.push(`/defaultanswer/report/${reportId}?url=${encodeURIComponent(normalized)}&data=${analysisB64}`);
       } else {

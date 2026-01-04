@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { blogPosts } from "@/app/(marketing)/blog/posts";
+import { getAllPosts } from "@/lib/blog";
 
 const siteUrl = "https://www.defaultanswer.com";
 
@@ -15,8 +15,7 @@ function escapeXml(value: string) {
 }
 
 export async function GET() {
-  const sorted = [...blogPosts].sort((a, b) => b.date.localeCompare(a.date));
-  const items = sorted
+  const items = getAllPosts()
     .map((post) => {
       const link = `${siteUrl}/blog/${post.slug}`;
       const pubDate = new Date(post.date).toUTCString();

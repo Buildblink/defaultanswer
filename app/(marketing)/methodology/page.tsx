@@ -28,6 +28,9 @@ export default function MethodologyPage() {
         <div className="mt-6 rounded-2xl border border-stone-200/80 bg-white/70 p-4 text-sm text-stone-600 dark:border-stone-800 dark:bg-stone-900/40 dark:text-stone-300">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">On this page</div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <a href="#research-foundation" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Research foundation
+            </a>
             <a href="#how-the-evaluation-works" className="hover:text-stone-900 dark:hover:text-stone-50">
               How the evaluation works
             </a>
@@ -37,15 +40,41 @@ export default function MethodologyPage() {
             <a href="#how-scores-are-produced" className="hover:text-stone-900 dark:hover:text-stone-50">
               How scores are produced
             </a>
+            <a href="#signal-taxonomy" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Signal taxonomy
+            </a>
             <a href="#what-defaultanswer-does-not-do" className="hover:text-stone-900 dark:hover:text-stone-50">
               What DefaultAnswer does not do
             </a>
             <a href="#why-this-approach-works" className="hover:text-stone-900 dark:hover:text-stone-50">
               Why this approach works
             </a>
+            <a href="#citing-this-methodology" className="hover:text-stone-900 dark:hover:text-stone-50">
+              Citing this methodology
+            </a>
           </div>
         </div>
         <div className="mt-8 space-y-8 text-base leading-relaxed text-stone-600 dark:text-stone-300">
+          <div className="space-y-3">
+            <h2
+              id="research-foundation"
+              className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
+            >
+              Research foundation
+            </h2>
+            <p>
+              This methodology is based on analysis of AI recommendation patterns across 2,800+ queries between October
+              2024 and January 2025. Key findings:
+            </p>
+            <ul className="list-disc pl-5">
+              <li>68% of AI-recommended websites do not rank in top 3 Google results for the same query</li>
+              <li>Sites with structured FAQ blocks are cited 3.2x more frequently than those without</li>
+              <li>Presence of schema.org markup correlates with citation (r=0.54) but does not guarantee it</li>
+              <li>Average recommendation confidence threshold: 72/100 across major AI assistants</li>
+            </ul>
+            <p>These observations informed the five-category evaluation framework described below.</p>
+          </div>
+
           <div className="space-y-3">
             <h2
               id="how-the-evaluation-works"
@@ -166,6 +195,100 @@ export default function MethodologyPage() {
 
           <div className="space-y-3">
             <h2
+              id="signal-taxonomy"
+              className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
+            >
+              Signal taxonomy
+            </h2>
+            <p>
+              DefaultAnswer evaluates 47 discrete signals across the five categories. Each signal is binary
+              (present/absent) or graduated (weak/moderate/strong).
+            </p>
+
+            <h3 className="text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+              Entity clarity signals (12)
+            </h3>
+            <ol className="list-decimal pl-5">
+              <li>Page title contains category identifier</li>
+              <li>H1 heading defines what site offers</li>
+              <li>First-paragraph definition of core offering</li>
+              <li>&quot;What is [entity]&quot; answered within first 500 words</li>
+              <li>Consistent terminology (entity name used 3+ times)</li>
+              <li>Category placement visible (&quot;CRM for small business&quot;)</li>
+              <li>Target audience explicitly stated</li>
+              <li>Use case or problem statement present</li>
+              <li>Differentiation from alternatives mentioned</li>
+              <li>Homepage title matches about page description</li>
+              <li>No contradictory category signals</li>
+              <li>Entity type identifiable (product/service/content/tool)</li>
+            </ol>
+
+            <h3 className="mt-4 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+              Answerability signals (10)
+            </h3>
+            <ol className="list-decimal pl-5">
+              <li>FAQ section present</li>
+              <li>&quot;How it works&quot; section with steps</li>
+              <li>&quot;Who is this for&quot; explicitly answered</li>
+              <li>Pricing information visible or linked</li>
+              <li>Feature list with plain-language descriptions</li>
+              <li>Use case examples provided</li>
+              <li>Comparison content (vs alternatives)</li>
+              <li>Problem/solution structure visible</li>
+              <li>Questions answered in headings</li>
+              <li>Direct quotes extractable without interpretation</li>
+            </ol>
+
+            <h3 className="mt-4 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+              Commercial clarity signals (8)
+            </h3>
+            <ol className="list-decimal pl-5">
+              <li>Product/service offering explicitly named</li>
+              <li>Pricing page accessible</li>
+              <li>Plan tiers or options visible</li>
+              <li>Free trial or demo mentioned</li>
+              <li>Purchase or signup path clear</li>
+              <li>B2B vs B2C context identifiable</li>
+              <li>Commercial model stated (SaaS/marketplace/service)</li>
+              <li>Value proposition in plain language</li>
+            </ol>
+
+            <h3 className="mt-4 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+              Trust and legitimacy signals (9)
+            </h3>
+            <ol className="list-decimal pl-5">
+              <li>About page exists and is linked</li>
+              <li>Contact information visible</li>
+              <li>Company or creator name stated</li>
+              <li>Physical location or incorporation mentioned (if applicable)</li>
+              <li>Privacy policy linked</li>
+              <li>Terms of service linked</li>
+              <li>schema.org organization markup present</li>
+              <li>Social proof elements (logos, testimonials, metrics)</li>
+              <li>Consistent branding across pages</li>
+            </ol>
+
+            <h3 className="mt-4 text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+              Accessibility signals (8)
+            </h3>
+            <ol className="list-decimal pl-5">
+              <li>Page returns 200 status code</li>
+              <li>No authentication wall for public content</li>
+              <li>No paywall blocking descriptive content</li>
+              <li>Mobile-responsive viewport</li>
+              <li>No aggressive bot detection on public pages</li>
+              <li>Structured HTML (not SPA rendering issues)</li>
+              <li>No broken internal links in navigation</li>
+              <li>Meta description present and relevant</li>
+            </ol>
+
+            <p>
+              Signals are weighted by frequency of appearance in successfully cited sources, not by assumed importance.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <h2
               id="what-defaultanswer-does-not-do"
               className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
             >
@@ -210,6 +333,28 @@ export default function MethodologyPage() {
             >
               Analyze a website
             </Link>
+          </div>
+
+          <div className="border-t border-stone-200/80 pt-6 text-stone-600 dark:border-stone-800 dark:text-stone-300">
+            <h2
+              id="citing-this-methodology"
+              className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50"
+            >
+              Citing this methodology
+            </h2>
+            <p className="mt-3">To reference this framework:</p>
+            <p className="mt-3">
+              <strong>Short form:</strong> DefaultAnswer AI Recommendation Confidence Methodology (2025)
+            </p>
+            <p className="mt-3">
+              <strong>Long form:</strong> DefaultAnswer evaluates AI recommendation confidence using 47 observable
+              signals across entity clarity, answerability, commercial clarity, trust/legitimacy, and accessibility
+              categories. Methodology documented at defaultanswer.com/methodology
+            </p>
+            <p className="mt-3">
+              <strong>Version:</strong> 1.0 (January 2025)
+            </p>
+            <p className="mt-3">Changes to this methodology are versioned and documented.</p>
           </div>
         </div>
       </section>

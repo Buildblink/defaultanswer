@@ -1,0 +1,166 @@
+---
+title: "Why AI cannot recommend what it cannot describe"
+description: "Why AI assistants skip websites that are hard to categorize, summarize, or justify as sources."
+date: "2025-01-14"
+category: "AI recommendations"
+tldr:
+  - "AI systems prefer sources they can describe in one or two sentences."
+  - "Ambiguous positioning forces interpretation, which increases risk."
+  - "Sites are skipped when definitions are implied instead of stated."
+  - "Being well written is not the same as being describable."
+  - "Recommendation-ready sites make categorization explicit."
+coreClaim: "AI assistants cannot recommend a website unless they can describe it clearly, directly, and without interpretation."
+---
+
+This article focuses on observable AI behavior, not proprietary model internals or speculative ranking factors. It follows the [methodology](/methodology). It explains why many websites are skipped by AI assistants even when their content quality is high.
+
+<KeyIdea title="Key idea">
+  Search engines retrieve documents. AI assistants generate answers. If a website cannot be summarized, categorized, and justified using visible on-page text, an AI system will avoid using it as a source, even if it ranks well or appears authoritative.
+</KeyIdea>
+
+<Callout title="Jump to" variant="note">
+  - [Clear description vs implied meaning](#clear-description-vs-implied-meaning)
+  - [How AI forms a description](#how-ai-forms-a-description)
+  - [Common description failures](#common-description-failures)
+  - [Recommendation-ready definition](#recommendation-ready-definition)
+  - [What to fix first](#what-to-fix-first)
+</Callout>
+
+<Section id="clear-description-vs-implied-meaning">
+
+## Clear description vs implied meaning
+
+Many websites assume their purpose is obvious.
+
+They rely on:
+
+- feature lists
+- benefit statements
+- brand language
+- marketing headlines
+
+Humans can infer meaning from this.
+
+AI systems cannot rely on inference at the moment an answer must be formed.
+
+For a related explanation of [rankings are not recommending](/blog/why-ai-recommendations-fail-even-when-you-rank-1), see the companion article.
+
+If the site never states what it is, who it is for, and what it offers in plain language, the description step fails.
+
+</Section>
+
+<Section id="how-ai-forms-a-description">
+
+## How AI forms a description
+
+When an AI assistant considers a source, it implicitly asks:
+
+- What is this site?
+- What category does it belong to?
+- What problem does it solve?
+- Who is it meant for?
+
+These questions must be answerable using visible, self-contained text.
+
+If the answers require:
+
+- combining multiple sections
+- interpreting brand language
+- guessing intent
+
+The source becomes risky to use.
+
+</Section>
+
+<Section id="common-description-failures" className="space-y-6">
+
+## Common description failures
+
+### 1. The site explains what it does, but not what it is
+
+"We help teams unlock better insights..." describes an activity, not an entity.
+
+AI systems need declarative statements:
+
+- This is a diagnostic tool
+- This is a SaaS platform
+- This is an advisory service
+
+Without that, categorization fails.
+
+### 2. The category is implied, not stated
+
+Some sites avoid naming their category to appear unique. This creates uncertainty.
+
+If an AI system cannot confidently place the site into a known category, it will choose a different source that it can classify.
+
+### 3. The audience is never named
+
+Statements like:
+
+- "Built for modern teams"
+- "Designed for growing businesses"
+
+Are vague.
+
+AI systems prefer explicit audience definitions:
+
+- SaaS founders
+- marketing teams
+- agencies
+- developers
+
+Ambiguity reduces recommendation confidence.
+
+</Section>
+
+<Section id="recommendation-ready-definition">
+
+## Recommendation-ready definition
+
+A website is recommendation-ready when an AI system can:
+
+- Describe what it is in one sentence
+- Identify who it is for without guessing
+- Explain what it offers using visible text
+- Categorize it consistently across scans
+
+<Callout title="Checklist" variant="note">
+  - A clear declarative statement of what the site is
+  - Explicit category naming
+  - Named target audience
+  - Plain-language description of the offering
+  - No reliance on implied meaning
+</Callout>
+
+</Section>
+
+<Section id="what-to-fix-first">
+
+## What to fix first
+
+If AI systems struggle to recommend your site, start here:
+
+1. Add a one-sentence definition near the top of the homepage
+2. Explicitly state the category you belong to
+3. Name the audience you serve
+4. Remove marketing language that replaces definitions
+5. Ensure the same description appears consistently across pages
+
+Clarity beats creativity at the moment an answer is generated.
+
+<Callout title="Next step" variant="note">
+  Want the diagnosis for your site? Run an analysis to see which missing signals create hesitation and what to fix first. [Analyze](/defaultanswer)
+</Callout>
+
+</Section>
+
+<Section>
+
+**Closing note**
+
+AI assistants do not avoid websites because they are bad. They avoid websites because they are hard to describe safely.
+
+If a site cannot be summarized without interpretation, it will not be recommended.
+
+</Section>

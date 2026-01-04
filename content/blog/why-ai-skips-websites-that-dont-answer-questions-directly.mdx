@@ -1,0 +1,162 @@
+---
+title: "Why AI skips websites that don't answer questions directly"
+description: "Why AI assistants skip sites that lack direct, extractable answers to common questions."
+date: "2025-01-17"
+category: "AI recommendations"
+tldr:
+  - "AI assistants prefer direct, self-contained answers."
+  - "Pages designed for exploration often reduce extractability."
+  - "Implied answers increase uncertainty at answer time."
+  - "FAQ-style clarity beats longform explanation."
+  - "Recommendation-ready sites answer common questions explicitly."
+coreClaim: "AI assistants avoid sources that require assembling answers from multiple places or interpreting implied meaning. If an answer cannot be extracted cleanly from a single visible location, the source becomes risky to use."
+---
+
+This article focuses on observable AI behavior when generating answers. It explains why websites with strong content are still skipped when AI systems cannot extract direct, self-contained answers from visible text. The evaluation follows the DefaultAnswer methodology.
+
+Companion: [Why AI recommendations fail even when you rank #1](/blog/why-ai-recommendations-fail-even-when-you-rank-1).
+
+<Callout title="DefaultAnswer context" variant="note">
+  DefaultAnswer is a diagnostic tool for AI recommendation readiness. It evaluates whether an AI assistant could confidently cite or recommend a site using observable, retrievable on-page signals. It does not measure rankings, traffic, or backlinks.
+</Callout>
+
+<KeyIdea title="Key idea">
+  AI systems generate answers under constraint. They do not browse freely, explore deeply, or synthesize across long pages the way humans do. They prefer sources where answers already exist in extractable form — stated plainly and in one place. When answers must be inferred, stitched together, or guessed, the system moves on. This is distinct from [ranking is not recommending](/blog/why-ai-recommendations-fail-even-when-you-rank-1).
+</KeyIdea>
+
+<Callout title="Jump to" variant="note">
+  - [What direct answers mean](#what-direct-answers-mean)
+  - [Why exploration hurts extractability](#why-exploration-hurts-extractability)
+  - [Common answerability failures](#common-answerability-failures)
+  - [Recommendation-ready definition](#recommendation-ready-definition)
+  - [What to fix first](#what-to-fix-first)
+</Callout>
+
+<Section id="what-direct-answers-mean">
+
+## What "direct answers" mean
+
+A direct answer is text that:
+
+- explicitly answers a common question
+- is visible on the page
+- does not depend on other sections
+- can be quoted without interpretation
+
+Examples of extractable questions:
+
+- What is this?
+- Who is it for?
+- How does it work?
+- What does it cost?
+- Why would someone choose it?
+
+If the answer only becomes clear after reading multiple sections, it is not direct.
+
+</Section>
+
+<Section id="why-exploration-hurts-extractability">
+
+## Why exploration hurts extractability
+
+Many websites are designed for human exploration.
+
+They use:
+
+- long narrative sections
+- progressive disclosure
+- feature walkthroughs
+- interactive elements
+
+Humans can explore and assemble meaning. AI systems cannot.
+
+At the moment an answer must be generated, the system favors sources where answers are already assembled.
+
+Exploration-first design often works against recommendation.
+
+</Section>
+
+<Section id="common-answerability-failures" className="space-y-6">
+
+## Common answerability failures
+
+### 1. Answers are distributed across sections
+
+If answering a question requires:
+
+- combining multiple paragraphs
+- scrolling through the page
+- reading supporting context
+
+The source becomes harder to use.
+
+AI systems prefer answers that live in one place.
+
+### 2. Answers are implied, not stated
+
+Marketing language often replaces clarity. Statements like:
+
+- "Built for modern teams"
+- "A better way to scale"
+
+Do not answer concrete questions.
+
+AI systems favor literal answers they can reuse without reinterpretation.
+
+### 3. Interactive content hides answers
+
+Content inside:
+
+- accordions
+- tabs
+- carousels
+- hover states
+
+May not be reliably retrievable.
+
+If the system cannot fetch the answer directly, it will not use it.
+
+</Section>
+
+<Section id="recommendation-ready-definition">
+
+## Recommendation-ready definition
+
+A website is [recommendation-ready](/methodology) when an AI system can:
+
+- extract answers to common questions directly
+- reuse those answers without interpretation
+- quote the site confidently inside an explanation
+
+If the answer must be reconstructed, the site is often skipped.
+
+</Section>
+
+<Section id="what-to-fix-first">
+
+## What to fix first
+
+If AI assistants hesitate to use your site, start here:
+
+- Direct answers: Add visible answers to common questions in plain language.
+- Self-contained sections: Ensure each answer stands on its own without relying on other parts of the page.
+- Literal wording: Replace implied positioning with declarative statements.
+- Accessible content: Avoid hiding key answers behind interactive elements.
+
+Small changes here often remove large amounts of uncertainty.
+
+<Callout title="Next step" variant="note">
+  Want the diagnosis for your site? Run an analysis to see which missing signals create hesitation and what to fix first. [Analyze](/defaultanswer)
+</Callout>
+
+</Section>
+
+<Section>
+
+Related: [Why AI cannot recommend what it cannot describe](/blog/why-ai-cannot-recommend-what-it-cannot-describe).
+
+AI recommendation is not about depth. It is about extractability.
+
+If an AI system cannot lift an answer cleanly from your site, it will choose another source.
+
+</Section>

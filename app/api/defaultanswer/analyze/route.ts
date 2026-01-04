@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { analyzeUrl } from '@/lib/defaultanswer/analyze'
+import { analyzeUrlMultiPage } from '@/lib/defaultanswer/analyze'
 import { buildScanRecordFromAnalysis, diffScans, fetchLatestScans, isHistoryConfigured, saveScan } from '@/lib/defaultanswer/history'
+import { saveReport, extractDomain } from '@/lib/report/history'
 
 type RequestBody = {
   url?: string
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const result = await analyzeUrl(url)
+  const result = await analyzeUrlMultiPage(url)
 
   if (result.fallback) {
     return NextResponse.json(
@@ -37,6 +38,9 @@ export async function POST(req: Request) {
   }
 
   let historyDiff = null
+  let reportUrl = null
+  const reportId = crypto.randomUUID()
+
   if (isHistoryConfigured()) {
     try {
       const record = buildScanRecordFromAnalysis(url, result.analysis)
@@ -56,11 +60,32 @@ export async function POST(req: Request) {
           : null
         historyDiff = diffScans(prevRecord as any, currRecord as any)
       }
+
+      // Save full report for clean URL access
+      const domain = extractDomain(url)
+      const savedReport = await saveReport({
+        domain,
+        reportId,
+        userId: null, // TODO: Add user ID when auth is implemented
+        analysisData: result.analysis,
+        url,
+      })
+
+      if (savedReport) {
+        reportUrl = `/reports/${domain}`
+      }
     } catch (err) {
       console.warn('[analyze history] failed', err)
     }
   }
 
-  return NextResponse.json({ ok: true, fallback: false, analysis: result.analysis, historyDiff })
+  return NextResponse.json({
+    ok: true,
+    fallback: false,
+    analysis: result.analysis,
+    historyDiff,
+    reportUrl, // Clean URL for sharing
+    reportId,
+  })
 }
 
