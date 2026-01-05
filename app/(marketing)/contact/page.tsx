@@ -1,3 +1,26 @@
+import type { Metadata } from "next";
+
+const siteUrl = "https://www.defaultanswer.com";
+
+export const metadata: Metadata = {
+  title: "Contact | DefaultAnswer",
+  description: "Contact DefaultAnswer for questions about methodology, report interpretation, or incorrect signals. Email: contact@defaultanswer.com",
+  alternates: {
+    canonical: `${siteUrl}/contact`,
+  },
+  openGraph: {
+    title: "Contact | DefaultAnswer",
+    description: "Get in touch with questions about methodology, report interpretation, or incorrect signals.",
+    type: "website",
+    images: ["/og.png"],
+    url: `${siteUrl}/contact`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
+  },
+};
+
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">

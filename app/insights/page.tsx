@@ -1,8 +1,30 @@
+import type { Metadata } from "next";
 import Link from "next/link"
 
 import { Badge } from "@/components/insights/Badge"
 import { CopyIconButton } from "@/components/insights/CopyIconButton"
 import { INSIGHTS } from "@/lib/insights/insights"
+
+const siteUrl = "https://www.defaultanswer.com";
+
+export const metadata: Metadata = {
+  title: "Insights | DefaultAnswer",
+  description: "Canonical findings derived from AI recommendation sweeps. Data-driven insights on how AI assistants retrieve, cite, and recommend websites.",
+  alternates: {
+    canonical: `${siteUrl}/insights`,
+  },
+  openGraph: {
+    title: "Insights | DefaultAnswer",
+    description: "Canonical findings derived from AI recommendation sweeps.",
+    type: "website",
+    images: ["/og.png"],
+    url: `${siteUrl}/insights`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
+  },
+};
 
 function excerptText(text: string, limit = 140) {
   if (text.length <= limit) return text

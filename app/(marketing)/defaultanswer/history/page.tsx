@@ -1,4 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+const siteUrl = "https://www.defaultanswer.com";
+
+export const metadata: Metadata = {
+  title: "Scan History | DefaultAnswer",
+  description: "View historical analysis data for websites. Track changes in AI recommendation readiness over time with detailed scan history.",
+  alternates: {
+    canonical: `${siteUrl}/defaultanswer/history`,
+  },
+  openGraph: {
+    title: "Scan History | DefaultAnswer",
+    description: "View historical analysis data and track changes in AI recommendation readiness over time.",
+    type: "website",
+    images: ["/og.png"],
+    url: `${siteUrl}/defaultanswer/history`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
+  },
+};
 
 async function fetchHistory(url: string, limit = 20) {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "";

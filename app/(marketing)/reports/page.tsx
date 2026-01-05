@@ -4,20 +4,26 @@ import { LandingLayout } from "@/components/landing/LandingLayout";
 import { Card } from "@/app/(landing)/ui/Card";
 import { SectionTitle } from "@/app/(landing)/ui/SectionTitle";
 
+const siteUrl = "https://www.defaultanswer.com";
+
 export const metadata: Metadata = {
-  title: "DefaultAnswer Reports",
+  title: "Example Reports | DefaultAnswer",
   description:
     "Explore example DefaultAnswer reports and learn what AI systems can retrieve, cite, and recommend today.",
   alternates: {
-    canonical: "/reports",
+    canonical: `${siteUrl}/reports`,
   },
   openGraph: {
-    title: "DefaultAnswer Reports",
+    title: "Example Reports | DefaultAnswer",
     description:
       "Explore example DefaultAnswer reports and learn what AI systems can retrieve, cite, and recommend today.",
-    url: "https://defaultanswer.com/reports",
-    siteName: "DefaultAnswer",
+    url: `${siteUrl}/reports`,
     type: "website",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
   },
 };
 

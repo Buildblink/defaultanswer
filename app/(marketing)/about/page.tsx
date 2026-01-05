@@ -1,3 +1,26 @@
+import type { Metadata } from "next";
+
+const siteUrl = "https://www.defaultanswer.com";
+
+export const metadata: Metadata = {
+  title: "About | DefaultAnswer",
+  description: "DefaultAnswer is a diagnostic tool for AI recommendation readiness. Evaluates whether an AI assistant could confidently recommend your website using observable, retrievable on-page signals.",
+  alternates: {
+    canonical: `${siteUrl}/about`,
+  },
+  openGraph: {
+    title: "About | DefaultAnswer",
+    description: "Diagnostic tool for AI recommendation readiness using observable, retrievable on-page signals.",
+    type: "website",
+    images: ["/og.png"],
+    url: `${siteUrl}/about`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og.png"],
+  },
+};
+
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50">
