@@ -1,24 +1,24 @@
 import type { MetadataRoute } from "next";
-import { getAllPosts } from "@/lib/blog";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = "https://www.defaultanswer.com";
-  const blogSlugs = getAllPosts().map((post) => post.slug);
 
-  const staticRoutes = [
-    "",
-    "/methodology",
-    "/blog",
-    "/reports",
-    "/about",
-    "/contact",
-    "/reports/defaultanswer.com",
+  return [
+    {
+      url: `${baseUrl}/static-sitemap.xml`,
+      lastModified: new Date(),
+    },
+    {
+      url: `${baseUrl}/blog-sitemap.xml`,
+      lastModified: new Date(),
+    },
+    {
+      url: `${baseUrl}/reports-sitemap.xml`,
+      lastModified: new Date(),
+    },
+    {
+      url: `${baseUrl}/insights-sitemap.xml`,
+      lastModified: new Date(),
+    },
   ];
-
-  const blogRoutes = blogSlugs.map((slug) => `/blog/${slug}`);
-
-  return [...staticRoutes, ...blogRoutes].map((route) => ({
-    url: `${baseUrl}${route}`,
-    lastModified: new Date(),
-  }));
 }
