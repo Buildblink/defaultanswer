@@ -608,8 +608,6 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           </Card>
         </section>
 
-        <ReportRightNowSection reportV2={reportV2} />
-
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
             Why this is true (optional)
