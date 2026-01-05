@@ -585,15 +585,18 @@ function SignalDetectionStatus({
   // Extract location from evidence
   let location = "Not detected on any scanned pages";
 
-  if (found && evidence && evidence.length > 0) {
-    for (const item of evidence) {
-      const match = item.match(/Found on: (.+)/i) || item.match(/FAQ found on: (.+)/i);
-      if (match) {
-        location = `Detected on: ${match[1]}`;
-        break;
+  if (found) {
+    // If signal was found, try to extract location from evidence
+    if (evidence && evidence.length > 0) {
+      for (const item of evidence) {
+        const match = item.match(/Found on: (.+)/i) || item.match(/FAQ found on: (.+)/i);
+        if (match) {
+          location = `Detected on: ${match[1]}`;
+          break;
+        }
       }
     }
-    // If found but no location info, assume homepage
+    // If found but no location extracted from evidence, assume homepage
     if (location === "Not detected on any scanned pages") {
       location = "Detected on: Homepage";
     }
