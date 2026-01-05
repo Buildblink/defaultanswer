@@ -46,11 +46,15 @@ export default function staticSitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly' as const,
       priority: 0.5,
     },
+    // Curated example reports (indexed for content marketing)
     {
       url: `${baseUrl}/reports/defaultanswer.com`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.7,
     },
+    // Add more curated examples here as needed:
+    // { url: `${baseUrl}/reports/otterly.ai`, ... },
+    // { url: `${baseUrl}/reports/hubspot.com`, ... },
   ];
 }
