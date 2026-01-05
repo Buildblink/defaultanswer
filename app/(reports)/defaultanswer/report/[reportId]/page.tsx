@@ -38,7 +38,7 @@ import { diffScans, fetchLatestScans, isHistoryConfigured, type ScanDiff } from 
 import type { FetchDiagnostics } from "@/lib/defaultanswer/scoring";
 import { ExportButtons } from "./export-buttons";
 import type { ExampleReportContext, ExampleReportData } from "@/app/reports/example-report-context";
-import { ReportRenderer, ReportRightNowSection, ReportV2Sections } from "@/components/report/ReportRenderer";
+import { ReportRenderer, ReportV2Sections } from "@/components/report/ReportRenderer";
 import { Card } from "@/app/(landing)/ui/Card";
 import { SectionTitle } from "@/app/(landing)/ui/SectionTitle";
 import { buildReportV2 } from "@/lib/report/report-v2";
@@ -401,34 +401,25 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           ? [
               { id: "overview", label: "Overview", visible: true },
               { id: "do-next", label: "Do this next", visible: true },
-              { id: "right-now", label: "Right now", visible: Boolean(reportV2) },
-              { id: "cold-ai-summary", label: "Cold AI understanding", visible: Boolean(reportV2) },
-              { id: "live-proof", label: "Live Proof", visible: Boolean(reportV2?.aiProof.length) },
+              { id: "visibility-gaps", label: "Why monitoring tools show low visibility", visible: Boolean(reportV2) },
+              { id: "score-breakdown", label: "Score breakdown", visible: analysis.breakdown.length > 0 },
               { id: "evidence", label: "Evidence", visible: true },
-              { id: "competitive", label: "Competitive snapshot", visible: Boolean(reportV2?.competitiveSnapshot.rows.length) },
-              { id: "coverage", label: "Coverage", visible: Boolean(reportV2) },
-              { id: "score-breakdown", label: "Scoring", visible: analysis.breakdown.length > 0 },
+              { id: "metadata", label: "Metadata", visible: true },
               { id: "history", label: "History", visible: !isExampleReport && isHistoryConfigured() },
             ]
           : [{ id: "overview", label: "Overview", visible: true }];
         const navGroups = isAnalysisReady
           ? [
               {
-                label: "Start here",
+                label: "Core report",
                 items: navItems.filter((item) =>
-                  ["overview", "do-next", "right-now"].includes(item.id)
+                  ["overview", "do-next", "visibility-gaps", "score-breakdown", "evidence", "metadata"].includes(item.id)
                 ),
               },
               {
-                label: "Proof & reasoning",
-                items: navItems.filter(
-                  (item) => ["cold-ai-summary", "live-proof", "evidence"].includes(item.id)
-                ),
-              },
-              {
-                label: "Deep dive (optional)",
+                label: "History (optional)",
                 items: navItems.filter((item) =>
-                  ["competitive", "coverage", "score-breakdown", "history"].includes(item.id)
+                  ["history"].includes(item.id)
                 ),
               },
             ]
@@ -683,19 +674,7 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           </p>
         </CollapsibleSection>
 
-        <ReportV2Sections
-          reportV2={reportV2}
-          reportId={reportId}
-          evaluatedUrl={analysis.extracted.evaluatedUrl || url}
-          brandName={displayBrand}
-          domain={displayDomain}
-          defaultModel={process.env.OPENAI_MODEL || "gpt-4o-mini"}
-          categoryLabel={liveProofCategory.label}
-          defaultLiveProofCategory={defaultLiveProofCategory}
-          coldSummarySnapshot={coldSummarySnapshot}
-          coldSummaryExistingSignals={existingSignals}
-          aiEnabled={aiEnabled}
-        />
+        <ReportV2Sections reportV2={reportV2} />
 
         {/* Competitive Delta */}
         {analysisStatus === "ok" && competitiveDelta.length >= 2 && (
@@ -1102,71 +1081,8 @@ export default async function ReportPage({ params, searchParams, exampleContext,
           )}
         </CollapsibleSection>
 
-        {/* Section: 14-Day Fix Plan */}
-        <CollapsibleSection
-          title="14-Day Fix Plan"
-          subtitle="Prioritized actions to improve your Default Answer Score:"
-        >
-          {analysis.fixPlan.length > 0 ? (
-            <div className="mt-4 space-y-3">
-              {analysis.fixPlan.map((item, i) => (
-                <Card key={i}>
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                      item.priority === "high"
-                        ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-                        : item.priority === "medium"
-                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
-                        : "bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-400"
-                    }`}>
-                      {item.priority.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-stone-800 dark:text-stone-200">{item.action}</p>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <p className="text-stone-500">No fixes needed — your site already shows strong, retrievable signals for AI recommendations.</p>
-          )}
-        </CollapsibleSection>
-
-        {/* Section: Evidence */}
-        <CollapsibleSection
-          title="Evidence"
-          subtitle={`Prompt Pack ${promptPackVersion} ? These prompts can be used to query LLMs about your brand. Copy any prompt to verify results yourself.`}
-        >
-
-          <div className="mt-4 space-y-6">
-            <PromptCategory
-              title="Best-in-Class Queries"
-              description="Direct queries asking for the best option"
-              prompts={prompts.filter(p => p.category === "best")}
-            />
-            <PromptCategory
-              title="Alternatives Queries"
-              description="Queries asking for alternatives or competitors"
-              prompts={prompts.filter(p => p.category === "alternatives")}
-            />
-            <PromptCategory
-              title="Comparison Queries"
-              description="Head-to-head and category comparisons"
-              prompts={prompts.filter(p => p.category === "comparison")}
-            />
-            <PromptCategory
-              title="Use-Case Queries"
-              description="Queries about fit for specific needs"
-              prompts={prompts.filter(p => p.category === "use_case")}
-            />
-          </div>
-        </CollapsibleSection>
-
         {/* Section: Metadata */}
-        <CollapsibleSection title="Metadata">
+        <CollapsibleSection id="metadata" title="Metadata">
           <div className="mt-4">
             <Card>
               <div className="font-mono text-sm">
